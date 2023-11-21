@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+// JwkAuth is the struct for the jwk auth
+type JwkAuth struct {
+	JwkSet jwk.Set
+}
+
 // Token is the struct for the token claims
 type Token struct {
 	UserID        string   `mapstructure:"sub"`
@@ -21,10 +26,10 @@ type Token struct {
 }
 
 // AuthMiddleware is the middleware for authenticating requests
-func AuthMiddleware(next http.Handler) http.Handler {
+func (s *JwkAuth) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// verify token
-		token, err := verifyToken(r)
+		token, err := verifyToken(r, s.JwkSet)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -37,17 +42,11 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func verifyToken(r *http.Request) (*Token, error) {
+func verifyToken(r *http.Request, jwksKeySet jwk.Set) (*Token, error) {
 	// get token from header
 	stringToken, err := getTokenFromHeader(r)
 	if err != nil {
 		return nil, err
-	}
-
-	// get jwks key set
-	jwksKeySet, err := jwk.Fetch(r.Context(), "<jwks url>")
-	if err != nil {
-		return nil, errors.New("could not fetch jwks key set")
 	}
 
 	// parse token
