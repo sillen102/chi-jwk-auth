@@ -1,0 +1,20 @@
+version: "3"
+
+networks:
+  local:
+    driver: bridge
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.5
+    container_name: keycloak
+    restart: always
+    command: [ start-dev ]
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=password
+    networks:
+      - local
+    ports:
+      - "8080:8080"
+      - "8443:8443"
