@@ -1,0 +1,4 @@
+github.com/go-chi/chi/v5 v5.0.10 h1:rLz5avzKpjqxrYwXNfmjkrYYXOyLJd37pz53UFHC6vk=
+github.com/go-chi/chi/v5 v5.0.10/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNITLSKoi8=
+github.com/sillen102/chi-jwk-auth v0.0.0-20231121122102-73f9ece48ac3 h1:vqzh88PKkJZGgyzTsl4ES8RnA6o+juGazmbeJlD2MuQ=
+github.com/sillen102/chi-jwk-auth v0.0.0-20231121122102-73f9ece48ac3/go.mod h1:GCLGdktwmIjmxAkkrpgLOeLSVsUUgwL/nn/5E5D8EVw=
