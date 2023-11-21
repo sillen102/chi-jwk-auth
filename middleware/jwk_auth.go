@@ -23,7 +23,7 @@ type JwkAuth struct {
 // TokenVerifier is the interface for a verifier,
 // you can use the GenericTokenVerifier or create your own implementation (useful in testing).
 type TokenVerifier interface {
-    VerifyToken(r *http.Request, jwkAuth JwkAuth) (map[string]interface{}, error)
+    VerifyToken(r *http.Request, jwkAuth *JwkAuth) (map[string]interface{}, error)
 }
 
 type GenericTokenVerifier struct {
@@ -44,7 +44,7 @@ func NewJwkAuth(issuer string) (*JwkAuth, error) {
 }
 
 // AuthMiddleware is the middleware for authenticating requests.
-func AuthMiddleware(a JwkAuth) func(next http.Handler) http.Handler {
+func AuthMiddleware(a *JwkAuth) func(next http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         fn := func(w http.ResponseWriter, r *http.Request) {
 
@@ -65,7 +65,7 @@ func AuthMiddleware(a JwkAuth) func(next http.Handler) http.Handler {
 }
 
 // VerifyToken verifies the token from the request and returns the claims.
-func (g *GenericTokenVerifier) VerifyToken(r *http.Request, jwkAuth JwkAuth) (map[string]interface{}, error) {
+func (g *GenericTokenVerifier) VerifyToken(r *http.Request, jwkAuth *JwkAuth) (map[string]interface{}, error) {
     // get token from header
     stringToken, err := getTokenFromHeader(r)
     if err != nil {
@@ -83,6 +83,7 @@ func (g *GenericTokenVerifier) VerifyToken(r *http.Request, jwkAuth JwkAuth) (ma
         return nil, errors.New("issuer does not match")
     }
 
+    // get claims
     claims, err := token.AsMap(r.Context())
     if err != nil {
         return nil, errors.New("could not decode token")

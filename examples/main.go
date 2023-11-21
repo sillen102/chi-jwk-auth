@@ -29,19 +29,24 @@ func main() {
     }
 
     r := chi.NewRouter()
-    r.Use(middleware.AuthMiddleware(*jwkAuth))
-
-    r.Get("/api/secure", func(w http.ResponseWriter, r *http.Request) {
-        var token MyToken
-        err := middleware.DecodeToken(r.Context(), &token)
-        if err != nil {
-            w.WriteHeader(http.StatusUnauthorized)
-            return
-        }
-
-        w.WriteHeader(http.StatusOK)
-        w.Write([]byte("Hello " + token.FirstName + " " + token.LastName))
-    })
+    setupRouter(r, jwkAuth)
 
     http.ListenAndServe("localhost:3000", r)
+}
+
+func setupRouter(r *chi.Mux, jwkAuth *middleware.JwkAuth) {
+    r.Use(middleware.AuthMiddleware(jwkAuth))
+    r.Get("/api/secure", myHandler)
+}
+
+func myHandler(w http.ResponseWriter, r *http.Request) {
+    var token MyToken
+    err := middleware.DecodeToken(r.Context(), &token)
+    if err != nil {
+        w.WriteHeader(http.StatusUnauthorized)
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte("Hello " + token.FirstName + " " + token.LastName))
 }
