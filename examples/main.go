@@ -28,18 +28,23 @@ func main() {
         log.Fatal("could not create jwk auth middleware")
     }
 
+    // create router
     r := chi.NewRouter()
     setupRouter(r, jwkAuth)
 
+    // start server
     http.ListenAndServe("localhost:3000", r)
 }
 
+// setupRouter sets up the router with jwk auth middleware.
 func setupRouter(r *chi.Mux, jwkAuth *middleware.JwkAuth) {
     r.Use(middleware.AuthMiddleware(jwkAuth))
     r.Get("/api/secure", myHandler)
 }
 
+// myHandler is the handler for the secure endpoint.
 func myHandler(w http.ResponseWriter, r *http.Request) {
+    // get token from context
     var token MyToken
     err := middleware.DecodeToken(r.Context(), &token)
     if err != nil {
@@ -47,6 +52,7 @@ func myHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // write response
     w.WriteHeader(http.StatusOK)
     w.Write([]byte("Hello " + token.FirstName + " " + token.LastName))
 }
