@@ -4,7 +4,6 @@ go 1.21
 
 require (
 	github.com/go-chi/chi/v5 v5.0.10
-	github.com/lestrrat-go/jwx/v2 v2.0.17
 	github.com/sillen102/chi-jwk-auth v0.1.0
 )
 
@@ -15,6 +14,7 @@ require (
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/httprc v1.0.4 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
+	github.com/lestrrat-go/jwx/v2 v2.0.17 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
