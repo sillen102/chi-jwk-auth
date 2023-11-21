@@ -1,7 +1,7 @@
 package keycloak
 
-// Token is the struct for the token claims
-type Token struct {
+// JwtToken is the struct for the token claims
+type JwtToken struct {
     UserID        string      `mapstructure:"sub"`
     FirstName     string      `mapstructure:"given_name"`
     LastName      string      `mapstructure:"family_name"`
