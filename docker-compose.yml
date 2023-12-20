@@ -6,10 +6,12 @@ networks:
 
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:22.0.5
+    image: quay.io/keycloak/keycloak:23.0.3
     container_name: keycloak
     restart: always
-    command: [ start-dev ]
+    command: [start-dev, --import-realm]
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
     environment:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=password

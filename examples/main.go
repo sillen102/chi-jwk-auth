@@ -5,6 +5,7 @@ import (
     "net/http"
 
     "github.com/go-chi/chi/v5"
+
     "github.com/sillen102/chi-jwk-auth/middleware"
 )
 
@@ -33,11 +34,12 @@ func main() {
     setupRouter(r, jwkAuth)
 
     // start server
-    http.ListenAndServe("localhost:3000", r)
+    log.Println("started server on localhost:8000")
+    log.Fatal(http.ListenAndServe("localhost:8000", r))
 }
 
 // setupRouter sets up the router with jwk auth middleware.
-func setupRouter(r *chi.Mux, jwkAuth *middleware.JwkAuth) {
+func setupRouter(r *chi.Mux, jwkAuth *middleware.JwkAuthOptions) {
     r.Use(middleware.AuthMiddleware(jwkAuth))
     r.Get("/api/secure", myHandler)
 }
@@ -54,5 +56,5 @@ func myHandler(w http.ResponseWriter, r *http.Request) {
 
     // write response
     w.WriteHeader(http.StatusOK)
-    w.Write([]byte("Hello " + token.FirstName + " " + token.LastName))
+    _, _ = w.Write([]byte("Hello " + token.FirstName + " " + token.LastName))
 }

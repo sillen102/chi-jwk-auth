@@ -2,12 +2,18 @@ package keycloak
 
 // JwtToken is the struct for the token claims
 type JwtToken struct {
-    UserID        string      `mapstructure:"sub"`
-    FirstName     string      `mapstructure:"given_name"`
-    LastName      string      `mapstructure:"family_name"`
-    Email         string      `mapstructure:"email"`
-    EmailVerified bool        `mapstructure:"email_verified"`
-    RealmAccess   RealmAccess `mapstructure:"realm_access"`
+    UserID         string      `mapstructure:"sub"`
+    Username       string      `mapstructure:"preferred_username"`
+    FirstName      string      `mapstructure:"given_name"`
+    LastName       string      `mapstructure:"family_name"`
+    Email          string      `mapstructure:"email"`
+    EmailVerified  bool        `mapstructure:"email_verified"`
+    RealmAccess    RealmAccess `mapstructure:"realm_access"`
+    Audience       string      `mapstructure:"aud"`
+    Scope          string      `mapstructure:"scope"`
+    IssuedAt       int64       `mapstructure:"iat"`
+    ExpiresAt      int64       `mapstructure:"exp"`
+    AllowedOrigins []string    `mapstructure:"allowed-origins"`
 }
 
 type RealmAccess struct {
