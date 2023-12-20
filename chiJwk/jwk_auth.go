@@ -1,4 +1,4 @@
-package middleware
+package chiJwk
 
 import (
     "context"
@@ -32,8 +32,8 @@ type TokenVerifier interface {
 type GenericTokenVerifier struct {
 }
 
-// NewJwkAuth creates a new jwk auth middleware.
-func NewJwkAuth(issuer string) (*JwkAuthOptions, error) {
+// NewJwkOptions creates a new jwk auth middleware.
+func NewJwkOptions(issuer string) (*JwkAuthOptions, error) {
     jwksSet, err := jwk.Fetch(context.Background(), issuer+"/protocol/openid-connect/certs")
     if err != nil {
         return nil, errors.New("could not fetch jwks key set")

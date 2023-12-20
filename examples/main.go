@@ -6,8 +6,8 @@ import (
 
     "github.com/go-chi/chi/v5"
 
+    "github.com/sillen102/chi-jwk-auth/chiJwk"
     "github.com/sillen102/chi-jwk-auth/keycloak"
-    "github.com/sillen102/chi-jwk-auth/middleware"
 )
 
 type MyToken struct {
@@ -25,14 +25,14 @@ type RealmAccess struct {
 
 func main() {
     // create jwk auth middleware with jwks key set
-    jwkAuth, err := middleware.NewJwkAuth("http://localhost:8080/realms/MyRealm")
+    authOptions, err := chiJwk.NewJwkOptions("http://localhost:8080/realms/MyRealm")
     if err != nil {
         log.Fatal("could not create jwk auth middleware")
     }
 
     // create router
     r := chi.NewRouter()
-    setupRouter(r, jwkAuth)
+    setupRouter(r, authOptions)
 
     // start server
     log.Println("started server on localhost:8000")
@@ -40,17 +40,24 @@ func main() {
 }
 
 // setupRouter sets up the router with jwk auth middleware.
-func setupRouter(r *chi.Mux, jwkAuth *middleware.JwkAuthOptions) {
-    r.Use(middleware.AuthMiddleware(jwkAuth))
+func setupRouter(r *chi.Mux, jwkAuth *chiJwk.JwkAuthOptions) {
+    r.Use(chiJwk.AuthMiddleware(jwkAuth))
+
+    // Without filter options
     r.Get("/api/secure", myHandler)
-    r.Get("/api/super-user", keycloak.WithAllowedRoles([]string{"superuser"}, myHandler))
+
+    // With filter options
+    r.Get("/api/super-user", keycloak.WithFilter(keycloak.FilterOptions{
+        Roles:  []string{"admin"},
+        Scopes: []string{"profile"},
+    }, myHandler))
 }
 
 // myHandler is the handler for the secure endpoint.
 func myHandler(w http.ResponseWriter, r *http.Request) {
     // get token from context
-    var token MyToken
-    err := middleware.DecodeToken(r.Context(), &token)
+    var token keycloak.JwtToken
+    err := chiJwk.DecodeToken(r.Context(), &token)
     if err != nil {
         w.WriteHeader(http.StatusUnauthorized)
         return

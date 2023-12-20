@@ -9,13 +9,13 @@ import (
     "github.com/go-chi/chi/v5"
     "github.com/stretchr/testify/require"
 
-    "github.com/sillen102/chi-jwk-auth/middleware"
+    "github.com/sillen102/chi-jwk-auth/chiJwk"
 )
 
 type MockVerifier struct {
 }
 
-func (v *MockVerifier) VerifyToken(_ *http.Request, _ *middleware.JwkAuthOptions) (map[string]interface{}, error) {
+func (v *MockVerifier) VerifyToken(_ *http.Request, _ *chiJwk.JwkAuthOptions) (map[string]interface{}, error) {
     return map[string]interface{}{
         "sub":         "123",
         "given_name":  "John",
@@ -25,7 +25,7 @@ func (v *MockVerifier) VerifyToken(_ *http.Request, _ *middleware.JwkAuthOptions
 
 func TestExample(t *testing.T) {
     // create jwk auth middleware with jwks key set
-    jwkAuth := &middleware.JwkAuthOptions{
+    jwkAuth := &chiJwk.JwkAuthOptions{
         JwkSet:   nil,
         Issuer:   "",
         Verifier: &MockVerifier{},

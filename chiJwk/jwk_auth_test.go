@@ -1,4 +1,4 @@
-package middleware_test
+package chiJwk_test
 
 import (
     "crypto/rand"
