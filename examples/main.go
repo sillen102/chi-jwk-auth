@@ -6,6 +6,7 @@ import (
 
     "github.com/go-chi/chi/v5"
 
+    "github.com/sillen102/chi-jwk-auth/keycloak"
     "github.com/sillen102/chi-jwk-auth/middleware"
 )
 
@@ -42,6 +43,7 @@ func main() {
 func setupRouter(r *chi.Mux, jwkAuth *middleware.JwkAuthOptions) {
     r.Use(middleware.AuthMiddleware(jwkAuth))
     r.Get("/api/secure", myHandler)
+    r.Get("/api/super-user", keycloak.WithAllowedRoles([]string{"superuser"}, myHandler))
 }
 
 // myHandler is the handler for the secure endpoint.
