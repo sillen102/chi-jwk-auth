@@ -19,68 +19,84 @@ import (
 
 const kidValue = "my-key-id"
 const issuerValue = "my-issuer"
+const audienceValue = "my-audience"
+const subjectValue = "my-subject"
+const tokenIdValue = "my-token-id"
 
-func TestAuthMiddlewareWithInvalidToken(t *testing.T) {
-    // Create a mock HTTP request
-    req, err := http.NewRequest("GET", "/test", nil)
-    if err != nil {
-        t.Fatal(err)
-    }
-
-    // Add an invalid Authorization header to the request
-    req.Header.Add("Authorization", "Bearer invalid-token")
-
-    // Create a mock HTTP response writer
-    rr := httptest.NewRecorder()
-
-    // Create a mock JwkAuthOptions
-    jwkAuthOptions := &chiJwk.JwkAuthOptions{
-        JwkSet:   jwk.NewSet(),
-        Issuer:   "mock-issuer",
-        Verifier: &chiJwk.GenericTokenVerifier{},
-    }
-
-    // Call the AuthMiddleware function
-    authMiddleware := chiJwk.AuthMiddleware(jwkAuthOptions)
-    authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(rr, req)
-
-    // Check if the response status code is 401 Unauthorized
-    assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestVerifyToken(t *testing.T) {
+func TestAuthMiddleware(t *testing.T) {
     // Create a new JWK Set and JWK key
     jwkSet, privateKey := createJwkKeysAndSet(t)
 
-    // Create a valid signed token
-    signedToken := createValidToken(t, privateKey)
-
-    // Create a new HTTP request
-    req, err := http.NewRequest("GET", "/test", nil)
-    if err != nil {
-        t.Fatal(err)
-    }
-
-    // Add the signed token to the Authorization header
-    req.Header.Add("Authorization", "Bearer "+signedToken)
-
-    // Create a new JwkAuthOptions with the JWK Set and the issuer
+    // Create a mock JwkAuthOptions
     jwkAuthOptions := &chiJwk.JwkAuthOptions{
-        JwkSet:   jwkSet,
-        Issuer:   issuerValue,
-        Verifier: &chiJwk.GenericTokenVerifier{},
+        JwkSet: jwkSet,
+        Issuer: issuerValue,
     }
 
-    // Call the VerifyToken method
-    claims, err := jwkAuthOptions.Verifier.VerifyToken(req, jwkAuthOptions)
-    if err != nil {
-        t.Fatal(err)
+    tests := []struct {
+        name           string
+        token          string
+        expectedStatus int
+    }{
+        {
+            name:           "With Invalid Token",
+            token:          "invalid-token",
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Valid Token",
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "With Expired Token",
+            token:          createTokenWithExpiration(t, privateKey, time.Now().Add(-time.Minute)),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Not Yet Valid Token",
+            token:          createTokenWithNotBefore(t, privateKey, time.Now().Add(time.Minute)),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Invalid Signature Token",
+            token:          createValidToken(t, privateKey) + "invalid",
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Invalid Kid Token",
+            token:          createTokenWithKid(t, privateKey, "invalid-kid"),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Invalid Issuer Token",
+            token:          createTokenWithIssuer(t, privateKey, "invalid-issuer"),
+            expectedStatus: http.StatusUnauthorized,
+        },
     }
 
-    // Assert the returned claims
-    assert.Equal(t, "my-audience", claims[jwt.AudienceKey].([]string)[0])
-    assert.Equal(t, issuerValue, claims[jwt.IssuerKey])
-    assert.Equal(t, "my-subject", claims[jwt.SubjectKey])
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Create a mock HTTP request
+            req, err := http.NewRequest("GET", "/test", nil)
+            if err != nil {
+                t.Fatal(err)
+            }
+
+            // Add the token to the Authorization header
+            req.Header.Add("Authorization", "Bearer "+tt.token)
+
+            // Create a mock HTTP response writer
+            rr := httptest.NewRecorder()
+
+            // Call the AuthMiddleware function
+            authMiddleware := jwkAuthOptions.AuthMiddleware()
+            authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(rr, req)
+
+            // Check if the response status code is as expected
+            assert.Equal(t, tt.expectedStatus, rr.Code)
+        })
+    }
 }
 
 func createJwkKeysAndSet(t *testing.T) (jwk.Set, *rsa.PrivateKey) {
@@ -125,8 +141,56 @@ func createJwkKeysAndSet(t *testing.T) (jwk.Set, *rsa.PrivateKey) {
 
 func createValidToken(t *testing.T, privateKey *rsa.PrivateKey) string {
     token := jwt.New()
+    setCommonClaims(t, token)
+    return signToken(t, token, privateKey)
+}
 
-    err := token.Set(jwt.AudienceKey, "my-audience")
+func createTokenWithExpiration(t *testing.T, privateKey *rsa.PrivateKey, exp time.Time) string {
+    token := jwt.New()
+    setCommonClaims(t, token)
+    err := token.Set(jwt.ExpirationKey, exp)
+    if err != nil {
+        t.Fatal(err)
+    }
+    return signToken(t, token, privateKey)
+}
+
+func createTokenWithNotBefore(t *testing.T, privateKey *rsa.PrivateKey, nbf time.Time) string {
+    token := jwt.New()
+    setCommonClaims(t, token)
+    err := token.Set(jwt.NotBeforeKey, nbf)
+    if err != nil {
+        t.Fatal(err)
+    }
+    return signToken(t, token, privateKey)
+}
+
+func createTokenWithKid(t *testing.T, privateKey *rsa.PrivateKey, kid string) string {
+    token := jwt.New()
+    setCommonClaims(t, token)
+    err := token.Set(jwk.KeyIDKey, kid)
+    if err != nil {
+        t.Fatal(err)
+    }
+    return signToken(t, token, privateKey)
+}
+
+func createTokenWithIssuer(t *testing.T, privateKey *rsa.PrivateKey, iss string) string {
+    token := jwt.New()
+    setCommonClaims(t, token)
+    err := token.Set(jwt.IssuerKey, iss)
+    if err != nil {
+        t.Fatal(err)
+    }
+    return signToken(t, token, privateKey)
+}
+
+func setCommonClaims(t *testing.T, token jwt.Token) {
+    err := token.Set(jwk.KeyIDKey, kidValue)
+    if err != nil {
+        t.Fatal(err)
+    }
+    err = token.Set(jwt.AudienceKey, audienceValue)
     if err != nil {
         t.Fatal(err)
     }
@@ -134,7 +198,7 @@ func createValidToken(t *testing.T, privateKey *rsa.PrivateKey) string {
     if err != nil {
         t.Fatal(err)
     }
-    err = token.Set(jwt.SubjectKey, "my-subject")
+    err = token.Set(jwt.SubjectKey, subjectValue)
     if err != nil {
         t.Fatal(err)
     }
@@ -142,21 +206,15 @@ func createValidToken(t *testing.T, privateKey *rsa.PrivateKey) string {
     if err != nil {
         t.Fatal(err)
     }
-    err = token.Set(jwt.ExpirationKey, time.Now().Add(time.Minute*5))
+    err = token.Set(jwt.JwtIDKey, tokenIdValue)
     if err != nil {
         t.Fatal(err)
     }
-    err = token.Set(jwt.NotBeforeKey, time.Now())
-    if err != nil {
-        t.Fatal(err)
-    }
-    err = token.Set(jwt.JwtIDKey, "unique-token-id")
-    if err != nil {
-        t.Fatal(err)
-    }
+}
 
+func signToken(t *testing.T, token jwt.Token, privateKey *rsa.PrivateKey) string {
     headers := jws.NewHeaders()
-    err = headers.Set(jwk.KeyIDKey, kidValue)
+    err := headers.Set(jwk.KeyIDKey, kidValue)
     if err != nil {
         t.Fatal(err)
     }

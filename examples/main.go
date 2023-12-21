@@ -41,7 +41,7 @@ func main() {
 
 // setupRouter sets up the router with jwk auth middleware.
 func setupRouter(r *chi.Mux, jwkAuth *chiJwk.JwkAuthOptions) {
-    r.Use(chiJwk.AuthMiddleware(jwkAuth))
+    r.Use(jwkAuth.AuthMiddleware())
 
     // Without filter options
     r.Get("/api/secure", myHandler)
@@ -57,7 +57,7 @@ func setupRouter(r *chi.Mux, jwkAuth *chiJwk.JwkAuthOptions) {
 func myHandler(w http.ResponseWriter, r *http.Request) {
     // get token from context
     var token keycloak.JwtToken
-    err := chiJwk.DecodeToken(r.Context(), &token)
+    err := chiJwk.ExtractToken(r.Context(), &token)
     if err != nil {
         w.WriteHeader(http.StatusUnauthorized)
         return

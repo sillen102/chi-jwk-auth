@@ -19,18 +19,8 @@ const JwtTokenKey = "jwt-token"
 type JwkAuthOptions struct {
     JwkSet          jwk.Set
     Issuer          string
-    Verifier        TokenVerifier
     RenewKeys       bool
     RenewalInterval time.Duration
-}
-
-// TokenVerifier is the interface for a verifier,
-// you can use the GenericTokenVerifier or create your own implementation (useful in testing).
-type TokenVerifier interface {
-    VerifyToken(r *http.Request, jwkAuth *JwkAuthOptions) (map[string]interface{}, error)
-}
-
-type GenericTokenVerifier struct {
 }
 
 // NewJwkOptions creates a new jwk auth middleware.
@@ -43,74 +33,55 @@ func NewJwkOptions(issuer string) (*JwkAuthOptions, error) {
     return &JwkAuthOptions{
         JwkSet:    jwksSet,
         Issuer:    issuer,
-        Verifier:  &GenericTokenVerifier{},
         RenewKeys: false,
     }, nil
 }
 
 // AuthMiddleware is the middleware for authenticating requests.
-func AuthMiddleware(a *JwkAuthOptions) func(next http.Handler) http.Handler {
+func (options *JwkAuthOptions) AuthMiddleware() func(next http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         fn := func(w http.ResponseWriter, r *http.Request) {
-
-            // verify token
-            token, err := a.Verifier.VerifyToken(r, a)
-            if err != nil {
-                w.WriteHeader(http.StatusUnauthorized)
+            // Get the Authorization header
+            authHeader := r.Header.Get("Authorization")
+            if authHeader == "" {
+                http.Error(w, "Authorization header required", http.StatusUnauthorized)
                 return
             }
 
-            // add token to context
+            // Check if the Authorization header starts with "Bearer "
+            if !strings.HasPrefix(authHeader, "Bearer ") {
+                http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+                return
+            }
+
+            // Extract the token from the Authorization header
+            tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+            // Parse and verify the token
+            token, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.JwkSet), jwt.WithValidate(true))
+            if err != nil {
+                http.Error(w, "Invalid token", http.StatusUnauthorized)
+                return
+            }
+
+            // Check the issuer
+            if token.Issuer() != options.Issuer {
+                http.Error(w, "Invalid issuer", http.StatusUnauthorized)
+                return
+            }
+
+            // Add token to context
             ctx := context.WithValue(r.Context(), JwtTokenKey, token)
 
+            // Call the next handler
             next.ServeHTTP(w, r.WithContext(ctx))
         }
         return http.HandlerFunc(fn)
     }
 }
 
-// VerifyToken verifies the token from the request and returns the claims.
-func (g *GenericTokenVerifier) VerifyToken(r *http.Request, jwkAuth *JwkAuthOptions) (map[string]interface{}, error) {
-    // get token from header
-    stringToken, err := getTokenFromHeader(r)
-    if err != nil {
-        return nil, fmt.Errorf("could not parse token: %w", err)
-    }
-
-    // parse token
-    token, err := jwt.Parse([]byte(stringToken), jwt.WithKeySet(jwkAuth.JwkSet), jwt.WithValidate(true))
-    if err != nil {
-        return nil, fmt.Errorf("could not parse token: %w", err)
-    }
-
-    // check issuer
-    if token.Issuer() != jwkAuth.Issuer {
-        return nil, fmt.Errorf("issuer does not match: %w", err)
-    }
-
-    // get claims
-    claims, err := token.AsMap(r.Context())
-    if err != nil {
-        return nil, fmt.Errorf("could not decode token: %w", err)
-    }
-
-    return claims, nil
-}
-
-func getTokenFromHeader(r *http.Request) (string, error) {
-    authHeader := r.Header.Get("Authorization")
-    if authHeader == "" {
-        return "", errors.New("no authorization header provided")
-    }
-    tokenParts := strings.Fields(authHeader)
-    if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-        return "", errors.New("invalid authorization header")
-    }
-    return tokenParts[1], nil
-}
-
-// DecodeToken decodes the token from the context into the token struct.
-func DecodeToken(ctx context.Context, token any) error {
+// ExtractToken extracts a token from the context into the provided object.
+func ExtractToken(ctx context.Context, token any) error {
     claims, ok := ctx.Value(JwtTokenKey).(map[string]interface{})
     if !ok {
         return errors.New("could not get token from context")
