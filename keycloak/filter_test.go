@@ -1,4 +1,4 @@
-package keycloak
+package keycloak_test
 
 import (
     "context"
@@ -9,6 +9,7 @@ import (
     "github.com/stretchr/testify/assert"
 
     "github.com/sillen102/chi-jwk-auth/chiJwk"
+    "github.com/sillen102/chi-jwk-auth/keycloak"
 )
 
 func TestWithFilter(t *testing.T) {
@@ -71,13 +72,13 @@ func TestWithFilter(t *testing.T) {
             }
 
             // Create a FilterOptions instance for testing
-            opts := FilterOptions{
+            opts := keycloak.FilterOptions{
                 Roles:  []string{"role1", "role2"},
                 Scopes: []string{"scope1", "scope2"},
             }
 
             // Call WithFilter with the mock request and handler function
-            WithFilter(opts, handlerFunc)(rr, req)
+            keycloak.WithFilter(opts, handlerFunc)(rr, req)
 
             // Check the status code of the response
             assert.Equal(t, tt.expectedStatus, rr.Code)
