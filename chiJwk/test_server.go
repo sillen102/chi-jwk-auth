@@ -21,6 +21,9 @@ import (
 )
 
 const kidValue = "test-kid"
+const audienceValue = "test-audience"
+const subjectValue = "test-subject"
+const tokenIDValue = "test-token-id"
 
 type TestServer struct {
     JwkSet     jwk.Set
@@ -180,33 +183,57 @@ func (s *TestServer) handleJwkSet(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *TestServer) addTokenClaims(token jwt.Token) error {
-    err := token.Set(jwt.AudienceKey, "test-audience")
-    if err != nil {
-        return err
+    if token == nil {
+        return errors.New("token is nil")
     }
-    err = token.Set(jwt.IssuerKey, s.Issuer)
-    if err != nil {
-        return err
+
+    if _, ok := token.Get(jwt.AudienceKey); !ok {
+        err := token.Set(jwt.AudienceKey, audienceValue)
+        if err != nil {
+            return err
+        }
     }
-    err = token.Set(jwt.SubjectKey, "test-subject")
-    if err != nil {
-        return err
+
+    if _, ok := token.Get(jwt.IssuerKey); !ok {
+        err := token.Set(jwt.IssuerKey, s.Issuer)
+        if err != nil {
+            return err
+        }
     }
-    err = token.Set(jwt.NotBeforeKey, time.Now())
-    if err != nil {
-        return err
+
+    if _, ok := token.Get(jwt.SubjectKey); !ok {
+        err := token.Set(jwt.SubjectKey, subjectValue)
+        if err != nil {
+            return err
+        }
     }
-    err = token.Set(jwt.IssuedAtKey, time.Now())
-    if err != nil {
-        return err
+
+    if _, ok := token.Get(jwt.NotBeforeKey); !ok {
+        err := token.Set(jwt.NotBeforeKey, time.Now())
+        if err != nil {
+            return err
+        }
     }
-    err = token.Set(jwt.ExpirationKey, time.Now().Add(time.Minute))
-    if err != nil {
-        return err
+
+    if _, ok := token.Get(jwt.IssuedAtKey); !ok {
+        err := token.Set(jwt.IssuedAtKey, time.Now())
+        if err != nil {
+            return err
+        }
     }
-    err = token.Set(jwt.JwtIDKey, "test-token-id")
-    if err != nil {
-        return err
+
+    if _, ok := token.Get(jwt.ExpirationKey); !ok {
+        err := token.Set(jwt.ExpirationKey, time.Now().Add(time.Minute))
+        if err != nil {
+            return err
+        }
+    }
+
+    if _, ok := token.Get(jwt.JwtIDKey); !ok {
+        err := token.Set(jwt.JwtIDKey, tokenIDValue)
+        if err != nil {
+            return err
+        }
     }
 
     return nil

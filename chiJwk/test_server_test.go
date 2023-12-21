@@ -4,7 +4,9 @@ import (
     "context"
     "net/http"
     "testing"
+    "time"
 
+    "github.com/lestrrat-go/jwx/v2/jwt"
     "github.com/stretchr/testify/assert"
 
     "github.com/sillen102/chi-jwk-auth/chiJwk"
@@ -69,4 +71,56 @@ func TestTestServer(t *testing.T) {
         }
         assert.Error(t, err)
     })
+}
+
+func TestIssueToken(t *testing.T) {
+    // Define the test cases
+    testCases := []struct {
+        name   string
+        claims map[string]interface{}
+    }{
+        {
+            name: "Test issuing a token with user-provided claims",
+            claims: map[string]interface{}{
+                jwt.AudienceKey:   []string{"user-provided-audience"},
+                jwt.IssuerKey:     "user-provided-issuer",
+                jwt.SubjectKey:    "user-provided-subject",
+                jwt.NotBeforeKey:  time.Now().Add(-1 * time.Minute).UTC().Round(time.Second),
+                jwt.IssuedAtKey:   time.Now().Add(-1 * time.Minute).UTC().Round(time.Second),
+                jwt.ExpirationKey: time.Now().Add(1 * time.Minute).UTC().Round(time.Second),
+                jwt.JwtIDKey:      "user-provided-jwt-id",
+            },
+        },
+        // Add more test cases as needed
+    }
+
+    for _, tc := range testCases {
+        t.Run(tc.name, func(t *testing.T) {
+            // Create a new TestServer
+            testServer, err := chiJwk.NewTestServer("")
+            if err != nil {
+                t.Fatalf("Error creating test server: %v", err)
+            }
+            defer testServer.Stop(context.Background())
+
+            // Issue a token with the user-provided claims
+            tokenStr, err := testServer.IssueToken(tc.claims)
+            if err != nil {
+                t.Fatalf("Error issuing token: %v", err)
+            }
+
+            // Parse the issued token
+            token, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(testServer.JwkSet), jwt.WithValidate(true))
+            if err != nil {
+                t.Fatalf("Error parsing token: %v", err)
+            }
+
+            // Check that the token contains the user-provided claims
+            for key, expectedValue := range tc.claims {
+                value, ok := token.Get(key)
+                assert.True(t, ok, "Token does not contain claim: %s", key)
+                assert.Equal(t, expectedValue, value, "Unexpected value for claim: %s", key)
+            }
+        })
+    }
 }
