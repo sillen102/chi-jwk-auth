@@ -17,6 +17,7 @@ type MyToken struct {
     Email         string      `mapstructure:"email"`
     EmailVerified bool        `mapstructure:"email_verified"`
     RealmAccess   RealmAccess `mapstructure:"realm_access"`
+    Scope         string      `mapstructure:"scope"`
 }
 
 type RealmAccess struct {

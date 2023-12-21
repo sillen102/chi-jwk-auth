@@ -15,6 +15,7 @@ import (
     "github.com/lestrrat-go/jwx/v2/jwk"
     "github.com/lestrrat-go/jwx/v2/jws"
     "github.com/lestrrat-go/jwx/v2/jwt"
+    "github.com/mitchellh/mapstructure"
 )
 
 const kidValue = "test-kid"
@@ -44,9 +45,8 @@ type TestServer struct {
 //
 // The Kid property will be set to the Key ID of the JWK.
 //
-// The server will have two endpoints:
+// The server will have one endpoint:
 // - /keys: Returns the JWK Set
-// - /issue: Issues a signed JWT with the claims specified in the request body
 func NewTestServer(addr string) (*TestServer, error) {
     // Generate a new RSA key pair
     privateKey, err := rsa.GenerateKey(crypto.Reader, 2048)
@@ -99,6 +99,48 @@ func NewTestServer(addr string) (*TestServer, error) {
     return server, nil
 }
 
+// IssueToken issues a JWT with the specified claims.
+// The token will be signed with the RSA key pair.
+//
+// The token will have the following claims:
+// - Audience: test-audience
+// - Issuer: The address of the test server
+// - Subject: test-subject
+// - Not Before: The current time
+// - Issued At: The current time
+// - Expiration: The current time plus one minute
+// - JWT ID: test-token-id
+func (s *TestServer) IssueToken(claims any) (string, error) {
+    var claimsMap map[string]interface{}
+    err := mapstructure.Decode(claims, &claimsMap)
+    if err != nil {
+        return "", err
+    }
+
+    token := jwt.New()
+    for key, value := range claimsMap {
+        _ = token.Set(key, value)
+    }
+
+    err = s.addTokenClaims(token)
+    if err != nil {
+        return "", err
+    }
+
+    headers := jws.NewHeaders()
+    err = headers.Set(jwk.KeyIDKey, kidValue)
+    if err != nil {
+        return "", err
+    }
+
+    buf, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, s.PrivateKey, jws.WithProtectedHeaders(headers)))
+    if err != nil {
+        return "", err
+    }
+
+    return string(buf), nil
+}
+
 // Stop stops the test server.
 func (s *TestServer) Stop(ctx context.Context) {
     _ = s.Server.Shutdown(ctx)
@@ -106,7 +148,6 @@ func (s *TestServer) Stop(ctx context.Context) {
 
 func (s *TestServer) start(addr string) error {
     http.HandleFunc("/keys", s.handleJwkSet)
-    http.HandleFunc("/issue", s.handleIssueKeys)
 
     // If no address is specified, listen on a random port
     if addr == "" {
@@ -128,70 +169,39 @@ func (s *TestServer) start(addr string) error {
     return nil
 }
 
-func (s *TestServer) handleJwkSet(w http.ResponseWriter, r *http.Request) {
+func (s *TestServer) handleJwkSet(w http.ResponseWriter, _ *http.Request) {
     _ = json.NewEncoder(w).Encode(s.JwkSet)
 }
 
-func (s *TestServer) handleIssueKeys(w http.ResponseWriter, r *http.Request) {
-    var claims map[string]interface{}
-    err := json.NewDecoder(r.Body).Decode(&claims)
+func (s *TestServer) addTokenClaims(token jwt.Token) error {
+    err := token.Set(jwt.AudienceKey, "test-audience")
     if err != nil {
-        w.WriteHeader(http.StatusBadRequest)
-        return
-    }
-
-    token := jwt.New()
-    for key, value := range claims {
-        _ = token.Set(key, value)
-    }
-
-    // Set common claims
-    err = token.Set(jwt.AudienceKey, "test-audience")
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+        return err
     }
     err = token.Set(jwt.IssuerKey, s.Issuer)
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+        return err
     }
     err = token.Set(jwt.SubjectKey, "test-subject")
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+        return err
     }
     err = token.Set(jwt.NotBeforeKey, time.Now())
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+        return err
     }
     err = token.Set(jwt.IssuedAtKey, time.Now())
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+        return err
     }
     err = token.Set(jwt.ExpirationKey, time.Now().Add(time.Minute))
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+        return err
     }
     err = token.Set(jwt.JwtIDKey, "test-token-id")
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
+        return err
     }
 
-    headers := jws.NewHeaders()
-    err = headers.Set(jwk.KeyIDKey, kidValue)
-    if err != nil {
-        return
-    }
-
-    buf, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, s.PrivateKey, jws.WithProtectedHeaders(headers)))
-    _, err = w.Write(buf)
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        return
-    }
+    return nil
 }

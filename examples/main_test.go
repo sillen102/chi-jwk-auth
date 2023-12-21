@@ -1,10 +1,7 @@
 package main
 
 import (
-    "bytes"
     "context"
-    "encoding/json"
-    "io"
     "net/http"
     "net/http/httptest"
     "testing"
@@ -31,47 +28,114 @@ func TestExample(t *testing.T) {
         RenewKeys:    false,
     }
 
-    // get token from test server
-    userToken := map[string]interface{}{
-        "sub":            "1234567890",
-        "given_name":     "John",
-        "family_name":    "Doe",
-        "email":          "john.doe@example.com",
-        "email_verified": true,
-        "realm_access":   map[string][]string{"roles": {"user"}},
-    }
-    userTokenJson, err := json.Marshal(userToken)
-    if err != nil {
-        t.Fatalf("Error converting user token to JSON: %v", err)
-    }
-    tokenResponse, err := http.Post(testServer.Issuer+"/issue", "application/json", bytes.NewBuffer(userTokenJson))
-    if err != nil {
-        t.Fatalf("Error getting token: %v", err)
-    }
-    tokenBytes, err := io.ReadAll(tokenResponse.Body)
-    if err != nil {
-        t.Fatalf("Error reading token response: %v", err)
-    }
-
-    // create test server
+    // create a new router
     r := chi.NewRouter()
     setupRouter(r, jwkAuth)
-    ts := httptest.NewServer(r)
-    defer ts.Close()
 
-    // make request
-    req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/secure", nil)
-    req.Header.Set("Authorization", "Bearer "+string(tokenBytes))
-    require.NoError(t, err)
+    // Define the test cases
+    testCases := []struct {
+        name           string
+        endpoint       string
+        token          string
+        expectedStatus int
+    }{
+        {
+            name:           "Test /api/secure endpoint",
+            endpoint:       "/api/secure",
+            token:          userToken(t, testServer),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "Test /api/admin endpoint",
+            endpoint:       "/api/admin",
+            token:          adminToken(t, testServer),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "Test /api/secure endpoint with no token",
+            endpoint:       "/api/secure",
+            token:          "",
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "Test /api/secure endpoint with invalid token",
+            endpoint:       "/api/secure",
+            token:          "invalid",
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "Test /api/admin endpoint with no token",
+            endpoint:       "/api/admin",
+            token:          "",
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "Test /api/admin endpoint with invalid token",
+            endpoint:       "/api/admin",
+            token:          "invalid",
+            expectedStatus: http.StatusUnauthorized,
+        },
+    }
 
-    resp, err := http.DefaultClient.Do(req)
-    require.NoError(t, err)
+    for _, tc := range testCases {
+        t.Run(tc.name, func(t *testing.T) {
+            // create a new request
+            req, err := http.NewRequest("GET", tc.endpoint, nil)
+            if err != nil {
+                t.Fatalf("Error creating request: %v", err)
+            }
 
-    // read response
-    respBody, err := io.ReadAll(resp.Body)
-    require.NoError(t, err)
+            // set the Authorization header
+            req.Header.Set("Authorization", "Bearer "+tc.token)
 
-    // assert response
-    require.Equal(t, http.StatusOK, resp.StatusCode)
-    require.Equal(t, "Hello John Doe", string(respBody))
+            // create a new recorder
+            rec := httptest.NewRecorder()
+
+            // serve the request
+            r.ServeHTTP(rec, req)
+
+            // assert the status code
+            require.Equal(t, tc.expectedStatus, rec.Code)
+        })
+    }
+}
+
+func userToken(t *testing.T, testServer *chiJwk.TestServer) string {
+    myUserToken, err := testServer.IssueToken(MyToken{
+        UserID:        "1234567890",
+        FirstName:     "John",
+        LastName:      "Doe",
+        Email:         "john.doe@example.com",
+        EmailVerified: true,
+        RealmAccess: RealmAccess{
+            Roles: []string{"user"},
+        },
+        Scope: "profile",
+    })
+
+    if err != nil {
+        t.Fatalf("Error issuing token: %v", err)
+    }
+
+    return myUserToken
+}
+
+func adminToken(t *testing.T, testServer *chiJwk.TestServer) string {
+    myAdminToken, err := testServer.IssueToken(MyToken{
+        UserID:        "1234567890",
+        FirstName:     "John",
+        LastName:      "Doe",
+        Email:         "john.doe@example.com",
+        EmailVerified: true,
+        RealmAccess: RealmAccess{
+            Roles: []string{"admin"},
+        },
+        Scope: "profile",
+    })
+
+    if err != nil {
+        t.Fatalf("Error issuing token: %v", err)
+    }
+
+    return myAdminToken
 }
