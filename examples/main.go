@@ -57,7 +57,7 @@ func setupRouter(r *chi.Mux, jwkAuth *chiJwk.JwkAuthOptions) {
 func myHandler(w http.ResponseWriter, r *http.Request) {
     // get token from context
     var token keycloak.JwtToken
-    err := chiJwk.ExtractToken(r.Context(), &token)
+    err := chiJwk.GetClaims(r.Context(), &token)
     if err != nil {
         w.WriteHeader(http.StatusUnauthorized)
         return

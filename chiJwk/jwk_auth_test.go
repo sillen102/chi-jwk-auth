@@ -142,7 +142,7 @@ func createJwkKeysAndSet(t *testing.T) (jwk.Set, *rsa.PrivateKey) {
 func createValidToken(t *testing.T, privateKey *rsa.PrivateKey) string {
     token := jwt.New()
     setCommonClaims(t, token)
-    return signToken(t, token, privateKey)
+    return signToken(t, token, privateKey, createHeaders(t, kidValue))
 }
 
 func createTokenWithExpiration(t *testing.T, privateKey *rsa.PrivateKey, exp time.Time) string {
@@ -152,7 +152,8 @@ func createTokenWithExpiration(t *testing.T, privateKey *rsa.PrivateKey, exp tim
     if err != nil {
         t.Fatal(err)
     }
-    return signToken(t, token, privateKey)
+
+    return signToken(t, token, privateKey, createHeaders(t, kidValue))
 }
 
 func createTokenWithNotBefore(t *testing.T, privateKey *rsa.PrivateKey, nbf time.Time) string {
@@ -162,7 +163,7 @@ func createTokenWithNotBefore(t *testing.T, privateKey *rsa.PrivateKey, nbf time
     if err != nil {
         t.Fatal(err)
     }
-    return signToken(t, token, privateKey)
+    return signToken(t, token, privateKey, createHeaders(t, kidValue))
 }
 
 func createTokenWithKid(t *testing.T, privateKey *rsa.PrivateKey, kid string) string {
@@ -172,7 +173,7 @@ func createTokenWithKid(t *testing.T, privateKey *rsa.PrivateKey, kid string) st
     if err != nil {
         t.Fatal(err)
     }
-    return signToken(t, token, privateKey)
+    return signToken(t, token, privateKey, createHeaders(t, "invalid-kid"))
 }
 
 func createTokenWithIssuer(t *testing.T, privateKey *rsa.PrivateKey, iss string) string {
@@ -182,15 +183,11 @@ func createTokenWithIssuer(t *testing.T, privateKey *rsa.PrivateKey, iss string)
     if err != nil {
         t.Fatal(err)
     }
-    return signToken(t, token, privateKey)
+    return signToken(t, token, privateKey, createHeaders(t, kidValue))
 }
 
 func setCommonClaims(t *testing.T, token jwt.Token) {
-    err := token.Set(jwk.KeyIDKey, kidValue)
-    if err != nil {
-        t.Fatal(err)
-    }
-    err = token.Set(jwt.AudienceKey, audienceValue)
+    err := token.Set(jwt.AudienceKey, audienceValue)
     if err != nil {
         t.Fatal(err)
     }
@@ -212,12 +209,16 @@ func setCommonClaims(t *testing.T, token jwt.Token) {
     }
 }
 
-func signToken(t *testing.T, token jwt.Token, privateKey *rsa.PrivateKey) string {
+func createHeaders(t *testing.T, kid string) jws.Headers {
     headers := jws.NewHeaders()
-    err := headers.Set(jwk.KeyIDKey, kidValue)
+    err := headers.Set(jwk.KeyIDKey, kid)
     if err != nil {
         t.Fatal(err)
     }
+    return headers
+}
+
+func signToken(t *testing.T, token jwt.Token, privateKey *rsa.PrivateKey, headers jws.Headers) string {
     buf, err := jwt.Sign(token, jwt.WithKey(jwa.RS256, privateKey, jws.WithProtectedHeaders(headers)))
     if err != nil {
         t.Fatal(err)

@@ -70,18 +70,26 @@ func (options *JwkAuthOptions) AuthMiddleware() func(next http.Handler) http.Han
                 return
             }
 
-            // Add token to context
-            ctx := context.WithValue(r.Context(), JwtTokenKey, token)
+            // Get claims
+            claims, err := token.AsMap(r.Context())
+            if err != nil {
+                http.Error(w, "Invalid token", http.StatusUnauthorized)
+                return
+            }
+
+            // Add claims to context
+            ctx := context.WithValue(r.Context(), JwtTokenKey, claims)
 
             // Call the next handler
             next.ServeHTTP(w, r.WithContext(ctx))
         }
+
         return http.HandlerFunc(fn)
     }
 }
 
-// ExtractToken extracts a token from the context into the provided object.
-func ExtractToken(ctx context.Context, token any) error {
+// GetClaims extracts the token claims from the context into the provided object.
+func GetClaims(ctx context.Context, token any) error {
     claims, ok := ctx.Value(JwtTokenKey).(map[string]interface{})
     if !ok {
         return errors.New("could not get token from context")
@@ -91,5 +99,6 @@ func ExtractToken(ctx context.Context, token any) error {
     if err != nil {
         return fmt.Errorf("failed to decode token: %w", err)
     }
+
     return nil
 }
