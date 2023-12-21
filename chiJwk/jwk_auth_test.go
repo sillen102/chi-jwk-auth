@@ -39,14 +39,14 @@ func TestAuthMiddleware(t *testing.T) {
         expectedStatus int
     }{
         {
-            name:           "With Invalid Token",
-            token:          "invalid-token",
-            expectedStatus: http.StatusUnauthorized,
-        },
-        {
             name:           "With Valid Token",
             token:          createValidToken(t, privateKey),
             expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "With Invalid Token",
+            token:          "invalid-token",
+            expectedStatus: http.StatusUnauthorized,
         },
         {
             name:           "With Expired Token",
@@ -112,6 +112,7 @@ func createJwkKeysAndSet(t *testing.T) (jwk.Set, *rsa.PrivateKey) {
         t.Fatal(err)
     }
 
+    // Set the JWK properties
     err = publicKey.Set(jwk.KeyIDKey, kidValue)
     if err != nil {
         t.Fatal(err)

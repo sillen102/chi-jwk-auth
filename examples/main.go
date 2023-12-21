@@ -51,10 +51,6 @@ func setupRouter(r *chi.Mux, jwkAuth *chiJwk.JwkAuthOptions) {
         Roles:  []string{"admin"},
         Scopes: []string{"profile"},
     }, myHandler))
-
-    r.Get("/api/super-user", keycloak.WithFilter(keycloak.FilterOptions{
-        Roles: []string{"superuser"},
-    }, myHandler))
 }
 
 // myHandler is the handler for the secure endpoint.

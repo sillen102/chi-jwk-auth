@@ -1,6 +1,9 @@
 package main
 
 import (
+    "bytes"
+    "context"
+    "encoding/json"
     "io"
     "net/http"
     "net/http/httptest"
@@ -12,23 +15,42 @@ import (
     "github.com/sillen102/chi-jwk-auth/chiJwk"
 )
 
-type MockVerifier struct {
-}
-
-func (v *MockVerifier) VerifyToken(_ *http.Request, _ *chiJwk.JwkAuthOptions) (map[string]interface{}, error) {
-    return map[string]interface{}{
-        "sub":         "123",
-        "given_name":  "John",
-        "family_name": "Doe",
-    }, nil
-}
-
 func TestExample(t *testing.T) {
+    // create a new jwk TestServer
+    testServer, err := chiJwk.NewTestServer("")
+    if err != nil {
+        t.Fatalf("Error creating test server: %v", err)
+    }
+    defer testServer.Stop(context.Background())
+
     // create jwk auth middleware with jwks key set
     jwkAuth := &chiJwk.JwkAuthOptions{
-        JwkSet:   nil,
-        Issuer:   "",
-        Verifier: &MockVerifier{},
+        JwkSet:       testServer.JwkSet,
+        Issuer:       testServer.Issuer,
+        IssuerJwkUrl: "/keys",
+        RenewKeys:    false,
+    }
+
+    // get token from test server
+    userToken := map[string]interface{}{
+        "sub":            "1234567890",
+        "given_name":     "John",
+        "family_name":    "Doe",
+        "email":          "john.doe@example.com",
+        "email_verified": true,
+        "realm_access":   map[string][]string{"roles": {"user"}},
+    }
+    userTokenJson, err := json.Marshal(userToken)
+    if err != nil {
+        t.Fatalf("Error converting user token to JSON: %v", err)
+    }
+    tokenResponse, err := http.Post(testServer.Issuer+"/issue", "application/json", bytes.NewBuffer(userTokenJson))
+    if err != nil {
+        t.Fatalf("Error getting token: %v", err)
+    }
+    tokenBytes, err := io.ReadAll(tokenResponse.Body)
+    if err != nil {
+        t.Fatalf("Error reading token response: %v", err)
     }
 
     // create test server
@@ -39,6 +61,7 @@ func TestExample(t *testing.T) {
 
     // make request
     req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/secure", nil)
+    req.Header.Set("Authorization", "Bearer "+string(tokenBytes))
     require.NoError(t, err)
 
     resp, err := http.DefaultClient.Do(req)
