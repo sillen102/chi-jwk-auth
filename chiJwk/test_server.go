@@ -5,6 +5,8 @@ import (
     crypto "crypto/rand"
     "crypto/rsa"
     "encoding/json"
+    "errors"
+    "log"
     "math/rand"
     "net"
     "net/http"
@@ -147,7 +149,11 @@ func (s *TestServer) Stop(ctx context.Context) {
 }
 
 func (s *TestServer) start(addr string) error {
-    http.HandleFunc("/keys", s.handleJwkSet)
+    // Create a new ServeMux
+    mux := http.NewServeMux()
+
+    // Register the endpoints on the new ServeMux
+    mux.HandleFunc("/keys", s.handleJwkSet)
 
     // If no address is specified, listen on a random port
     if addr == "" {
@@ -156,16 +162,16 @@ func (s *TestServer) start(addr string) error {
         addr = net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
     }
 
-    listener, err := net.Listen("tcp", addr)
-    if err != nil {
-        return err
-    }
-
     s.Server.Addr = addr
     s.Issuer = "http://" + addr
+    s.Server.Handler = mux // Set the Server's Handler to the new ServeMux
+
     go func() {
-        _ = s.Server.Serve(listener)
+        if err := s.Server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+            log.Fatalf("listen: %s\n", err)
+        }
     }()
+
     return nil
 }
 
