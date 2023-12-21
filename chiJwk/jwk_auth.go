@@ -3,6 +3,7 @@ package chiJwk
 import (
     "context"
     "errors"
+    "fmt"
     "net/http"
     "strings"
     "time"
@@ -73,24 +74,24 @@ func (g *GenericTokenVerifier) VerifyToken(r *http.Request, jwkAuth *JwkAuthOpti
     // get token from header
     stringToken, err := getTokenFromHeader(r)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("could not parse token: %w", err)
     }
 
     // parse token
     token, err := jwt.Parse([]byte(stringToken), jwt.WithKeySet(jwkAuth.JwkSet), jwt.WithValidate(true))
     if err != nil {
-        return nil, errors.New("could not parse token")
+        return nil, fmt.Errorf("could not parse token: %w", err)
     }
 
     // check issuer
     if token.Issuer() != jwkAuth.Issuer {
-        return nil, errors.New("issuer does not match")
+        return nil, fmt.Errorf("issuer does not match: %w", err)
     }
 
     // get claims
     claims, err := token.AsMap(r.Context())
     if err != nil {
-        return nil, errors.New("could not decode token")
+        return nil, fmt.Errorf("could not decode token: %w", err)
     }
 
     return claims, nil
@@ -117,7 +118,7 @@ func DecodeToken(ctx context.Context, token any) error {
 
     err := mapstructure.Decode(claims, token)
     if err != nil {
-        return errors.New("failed to decode token")
+        return fmt.Errorf("failed to decode token: %w", err)
     }
     return nil
 }
