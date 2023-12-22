@@ -46,6 +46,35 @@ func NewJwkOptions(issuer string) (*JwkAuthOptions, error) {
     }, nil
 }
 
+// WithIssuer sets the issuer option that determines the issuer of the tokens.
+func (options *JwkAuthOptions) WithIssuer(issuer string) {
+    options.Issuer = issuer
+}
+
+// WithIssuerJwkUrl sets the issuer JWK URL option that determines where the JWK Set should
+// be fetched from.
+func (options *JwkAuthOptions) WithIssuerJwkUrl(issuerJwkUrl string) {
+    options.IssuerJwkUrl = issuerJwkUrl
+}
+
+// WithRenewKeys sets the renew keys option that determines if the keys should be renewed
+// at regular intervals.
+func (options *JwkAuthOptions) WithRenewKeys(renewKeys bool) {
+    options.RenewKeys = renewKeys
+}
+
+// WithRenewalInterval sets the renewal interval option that determines how often the keys
+// should be renewed.
+func (options *JwkAuthOptions) WithRenewalInterval(renewalInterval time.Duration) {
+    options.RenewalInterval = renewalInterval
+}
+
+// WithKeyRotationGracePeriod sets the key rotation grace period option that determines how
+// long the old keys should be kept after the new keys have been fetched.
+func (options *JwkAuthOptions) WithKeyRotationGracePeriod(keyRotationGracePeriod time.Duration) {
+    options.KeyRotationGracePeriod = keyRotationGracePeriod
+}
+
 // AuthMiddleware is the middleware for authenticating requests.
 func (options *JwkAuthOptions) AuthMiddleware() func(next http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
