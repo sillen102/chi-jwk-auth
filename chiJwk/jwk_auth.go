@@ -26,6 +26,7 @@ type JwkAuthOptions struct {
     RenewKeys              bool
     RenewalInterval        time.Duration
     KeyRotationGracePeriod time.Duration
+    Logger                 Logger
 }
 
 // NewJwkOptions creates a new jwk auth middleware.
@@ -73,6 +74,11 @@ func (options *JwkAuthOptions) WithRenewalInterval(renewalInterval time.Duration
 // long the old keys should be kept after the new keys have been fetched.
 func (options *JwkAuthOptions) WithKeyRotationGracePeriod(keyRotationGracePeriod time.Duration) {
     options.KeyRotationGracePeriod = keyRotationGracePeriod
+}
+
+// WithLogger sets the logger option that determines how the library logs messages.
+func (options *JwkAuthOptions) WithLogger(logger Logger) {
+    options.Logger = logger
 }
 
 // AuthMiddleware is the middleware for authenticating requests.
@@ -159,36 +165,41 @@ func (options *JwkAuthOptions) startKeyRenewal() {
     go func() {
         for range ticker.C {
             // Fetch the new JWK Set
+            options.Logger.Debug("Fetching JWK Set")
             newJwkSet, err := jwk.Fetch(context.Background(), options.IssuerJwkUrl)
             if err != nil {
-                fmt.Printf("Error fetching JWK Set: %v\n", err)
+                options.Logger.Error(err, "Error fetching JWK Set")
                 continue
             }
 
             // Convert the current and new JWK Sets to JSON
+            options.Logger.Debug("Marshaling JWK Sets")
             currentJwkSetJson, err := json.Marshal(options.JwkSet)
             if err != nil {
-                fmt.Printf("Error marshaling current JWK Set: %v\n", err)
+                options.Logger.Error(err, "Error marshaling current JWK Set")
                 continue
             }
             newJwkSetJson, err := json.Marshal(newJwkSet)
             if err != nil {
-                fmt.Printf("Error marshaling new JWK Set: %v\n", err)
+                options.Logger.Error(err, "Error marshaling new JWK Set")
                 continue
             }
 
             // If the JWK Sets are the same, skip the update
             if string(currentJwkSetJson) == string(newJwkSetJson) {
+                options.Logger.Debug("JWK Set has not changed")
                 continue
             }
 
             // Keep the old JWK Set and update the current one
+            options.Logger.Debug("Updating JWK Set")
             options.oldJwkSet = options.JwkSet
             options.JwkSet = newJwkSet
 
             // Start a timer for the grace period
             time.AfterFunc(options.KeyRotationGracePeriod, func() {
                 // After the grace period, discard the old JWK Set
+                options.Logger.Debug("Discarding old JWK Set")
                 options.oldJwkSet = nil
             })
         }
