@@ -47,7 +47,7 @@ func WithFilter(opts FilterOptions, handlerFunc func(w http.ResponseWriter, r *h
 }
 
 func getUserRolesFromClaims(claims map[string]interface{}) (map[string]bool, bool) {
-    userRolesInterface, ok := claims["realm_access"].(map[string]interface{})["roles"].([]interface{})
+    userRolesInterface, ok := claims["realm_access"].(map[string]interface{})["tokenRoles"].([]interface{})
     if !ok {
         return nil, false
     }
@@ -61,6 +61,10 @@ func getUserRolesFromClaims(claims map[string]interface{}) (map[string]bool, boo
 }
 
 func userHasRequiredRoles(userRoles map[string]bool, requiredRoles []string) bool {
+    if requiredRoles == nil || len(requiredRoles) == 0 {
+        return true
+    }
+
     for _, role := range requiredRoles {
         if _, ok := userRoles[role]; ok {
             return true
@@ -85,6 +89,10 @@ func getScopesFromClaims(claims map[string]interface{}) (map[string]bool, bool) 
 }
 
 func tokenHasRequiredScopes(scopesMap map[string]bool, requiredScopes []string) bool {
+    if requiredScopes == nil || len(requiredScopes) == 0 {
+        return true
+    }
+
     for _, scope := range requiredScopes {
         if _, ok := scopesMap[scope]; ok {
             return true
