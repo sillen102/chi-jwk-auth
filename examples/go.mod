@@ -29,4 +29,4 @@ require (
 	golang.org/x/sys v0.14.0 // indirect
 )
 
-replace github.com/sillen102/chi-jwk-auth v0.1.0 => ../
+replace github.com/sillen102/chi-jwk-auth v0.3.0 => ../
