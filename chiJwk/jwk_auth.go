@@ -32,7 +32,6 @@ type JwkAuthOptions struct {
 }
 
 type Token interface {
-    Issuer() string
     Roles() []string
     Scopes() []string
 }

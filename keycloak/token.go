@@ -25,17 +25,12 @@ type RealmAccess struct {
     Roles []string `mapstructure:"tokenRoles"`
 }
 
-// Issuer returns the issuer of the token.
-func (t JwtToken) Issuer() string {
-    return t.Issuer()
-}
-
 // Roles returns the roles of the token.
-func (t JwtToken) Roles() []string {
+func (t *JwtToken) Roles() []string {
     return t.RealmAccess.Roles
 }
 
 // Scopes returns the scopes of the token.
-func (t JwtToken) Scopes() []string {
+func (t *JwtToken) Scopes() []string {
     return strings.Split(t.Scope, " ")
 }
