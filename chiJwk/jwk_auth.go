@@ -23,10 +23,24 @@ type JwkAuthOptions struct {
     oldJwkSet              jwk.Set
     Issuer                 string
     IssuerJwkUrl           string
+    Filter                 Filter
     RenewKeys              bool
     RenewalInterval        time.Duration
     KeyRotationGracePeriod time.Duration
     Logger                 Logger
+    CreateToken            func(claims map[string]interface{}) (Token, error)
+}
+
+type Token interface {
+    Issuer() string
+    Roles() []string
+    Scopes() []string
+    CreateToken() func(*jwt.Token, map[string]interface{}) (Token, error)
+}
+
+type Filter interface {
+    Roles() []string
+    Scopes() []string
 }
 
 // NewJwkOptions creates a new jwk auth middleware.
@@ -58,7 +72,13 @@ func (options *JwkAuthOptions) WithIssuerJwkUrl(issuerJwkUrl string) {
     options.IssuerJwkUrl = issuerJwkUrl
 }
 
-// WithRenewKeys sets the renew keys option that determines if the keys should be renewed
+// WithFilter sets the filter option that determines the roles and scopes that are required
+// for the token.
+func (options *JwkAuthOptions) WithFilter(filter Filter) {
+    options.Filter = filter
+}
+
+// WithRenewKeys sets the option for key renewal that determines if the keys should be renewed
 // at regular intervals.
 func (options *JwkAuthOptions) WithRenewKeys(renewKeys bool) {
     options.RenewKeys = renewKeys
@@ -82,7 +102,7 @@ func (options *JwkAuthOptions) WithLogger(logger Logger) {
 }
 
 // AuthMiddleware is the middleware for authenticating requests.
-func (options *JwkAuthOptions) AuthMiddleware() func(next http.Handler) http.Handler {
+func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         if options.RenewKeys {
             options.startKeyRenewal()
@@ -106,10 +126,10 @@ func (options *JwkAuthOptions) AuthMiddleware() func(next http.Handler) http.Han
             tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
             // Parse and verify the token
-            token, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.JwkSet), jwt.WithValidate(true))
+            jwtToken, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.JwkSet), jwt.WithValidate(true))
             if err != nil && options.oldJwkSet != nil {
                 // If validation with the new keys failed and there are old keys, try the old keys
-                token, err = jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.oldJwkSet), jwt.WithValidate(true))
+                jwtToken, err = jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.oldJwkSet), jwt.WithValidate(true))
             }
             if err != nil {
                 http.Error(w, "Invalid token", http.StatusUnauthorized)
@@ -117,16 +137,38 @@ func (options *JwkAuthOptions) AuthMiddleware() func(next http.Handler) http.Han
             }
 
             // Check the issuer
-            if token.Issuer() != options.Issuer {
+            if jwtToken.Issuer() != options.Issuer {
                 http.Error(w, "Invalid issuer", http.StatusUnauthorized)
                 return
             }
 
             // Get claims
-            claims, err := token.AsMap(r.Context())
+            claims, err := jwtToken.AsMap(r.Context())
             if err != nil {
                 http.Error(w, "Invalid token", http.StatusUnauthorized)
                 return
+            }
+
+            // Check if the token passes any filters
+            if filter != nil && len(filter) > 0 && filter[0] != nil && options.CreateToken != nil {
+                // Create token instance
+                token, err := options.CreateToken(claims)
+                if err != nil {
+                    http.Error(w, "Invalid token type", http.StatusUnauthorized)
+                    return
+                }
+
+                for _, f := range filter {
+                    if !TokenHasRequiredRoles(token.Roles(), f.Roles()) {
+                        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                        return
+                    }
+
+                    if !TokenHasRequiredScopes(token.Scopes(), f.Scopes()) {
+                        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                        return
+                    }
+                }
             }
 
             // Add claims to context
@@ -141,7 +183,7 @@ func (options *JwkAuthOptions) AuthMiddleware() func(next http.Handler) http.Han
 }
 
 // GetClaims extracts the token claims from the context into the provided object.
-func GetClaims(ctx context.Context, token any) error {
+func GetClaims(ctx context.Context, token Token) error {
     claims, ok := ctx.Value(JwtTokenKey).(map[string]interface{})
     if !ok {
         return errors.New("could not get token from context")
@@ -153,6 +195,46 @@ func GetClaims(ctx context.Context, token any) error {
     }
 
     return nil
+}
+
+// TokenHasRequiredRoles checks if the token has the required scopes.
+func TokenHasRequiredRoles(tokenRoles []string, requiredRoles []string) bool {
+    if requiredRoles == nil || len(requiredRoles) == 0 {
+        return true
+    }
+
+    // Create a map for quick lookup of token roles
+    tokenRolesMap := make(map[string]bool)
+    for _, role := range tokenRoles {
+        tokenRolesMap[role] = true
+    }
+
+    // Check if all required roles are in the token roles
+    for _, requiredRole := range requiredRoles {
+        if _, ok := tokenRolesMap[requiredRole]; !ok {
+            return false
+        }
+    }
+
+    return true
+}
+
+// TokenHasRequiredScopes checks if the token has the required scopes.
+func TokenHasRequiredScopes(tokenScopes []string, requiredScopes []string) bool {
+    // Create a map for quick lookup of token scopes
+    tokenScopesMap := make(map[string]bool)
+    for _, scope := range tokenScopes {
+        tokenScopesMap[scope] = true
+    }
+
+    // Check if all required scopes are in the token scopes
+    for _, requiredScope := range requiredScopes {
+        if _, ok := tokenScopesMap[requiredScope]; !ok {
+            return false
+        }
+    }
+
+    return true
 }
 
 // startKeyRenewal starts a ticker that fetches the JWK Set at regular intervals.
