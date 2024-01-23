@@ -35,7 +35,6 @@ type Token interface {
     Issuer() string
     Roles() []string
     Scopes() []string
-    CreateToken() func(*jwt.Token, map[string]interface{}) (Token, error)
 }
 
 type Filter interface {
@@ -99,6 +98,11 @@ func (options *JwkAuthOptions) WithKeyRotationGracePeriod(keyRotationGracePeriod
 // WithLogger sets the logger option that determines how the library logs messages.
 func (options *JwkAuthOptions) WithLogger(logger Logger) {
     options.Logger = logger
+}
+
+// WithCreateToken sets the create token option that determines how the token is created.
+func (options *JwkAuthOptions) WithCreateToken(createToken func(claims map[string]interface{}) (Token, error)) {
+    options.CreateToken = createToken
 }
 
 // AuthMiddleware is the middleware for authenticating requests.
