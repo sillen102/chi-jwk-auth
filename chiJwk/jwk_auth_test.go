@@ -112,7 +112,7 @@ func TestAuthMiddleware(t *testing.T) {
             expectedStatus: http.StatusOK,
         },
         {
-            name: "With Valid Filter (Missing Scopes)",
+            name: "With Valid Filter (Missing FilterScopes)",
             filter: &MockFilter{
                 roles: []string{"role1", "role2"},
             },
@@ -120,7 +120,7 @@ func TestAuthMiddleware(t *testing.T) {
             expectedStatus: http.StatusOK,
         },
         {
-            name: "With Valid Filter (Missing Roles)",
+            name: "With Valid Filter (Missing FilterRoles)",
             filter: &MockFilter{
                 scopes: []string{"scope1", "scope2"},
             },
