@@ -13,6 +13,7 @@ type FilterOptions struct {
     FilterScopes []string
 }
 
+// WithFilter is a middleware for a function that checks if the token has the required roles and scopes.
 func WithFilter(opts FilterOptions, handlerFunc func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
     return func(w http.ResponseWriter, r *http.Request) {
         claims, ok := r.Context().Value(chiJwk.JwtTokenKey).(map[string]interface{})
