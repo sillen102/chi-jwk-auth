@@ -5,7 +5,7 @@ import (
     "time"
 )
 
-// JwtToken is the struct for the token claims
+// JwtToken is the struct for the token claims.
 type JwtToken struct {
     UserID         string      `mapstructure:"sub"`
     Username       string      `mapstructure:"preferred_username"`
