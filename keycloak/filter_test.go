@@ -99,8 +99,8 @@ func TestWithFilter(t *testing.T) {
 
             // Create a FilterOptions instance for testing
             opts := keycloak.FilterOptions{
-                Roles:  tt.requiredRoles,
-                Scopes: tt.requiredScopes,
+                FilterRoles:  tt.requiredRoles,
+                FilterScopes: tt.requiredScopes,
             }
 
             // Call WithFilter with the mock request and handler function

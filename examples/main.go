@@ -49,8 +49,8 @@ func setupRouter(r *chi.Mux, jwkAuth *chiJwk.JwkAuthOptions) {
 
     // With filter options
     r.Get("/api/admin", keycloak.WithFilter(keycloak.FilterOptions{
-        Roles:  []string{"admin"},
-        Scopes: []string{"profile"},
+        FilterRoles:  []string{"admin"},
+        FilterScopes: []string{"profile"},
     }, myHandler))
 }
 

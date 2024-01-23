@@ -9,10 +9,11 @@ import (
 )
 
 type FilterOptions struct {
-    Roles  []string
-    Scopes []string
+    FilterRoles  []string
+    FilterScopes []string
 }
 
+// WithFilter is a middleware for a function that checks if the token has the required roles and scopes.
 func WithFilter(opts FilterOptions, handlerFunc func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
     return func(w http.ResponseWriter, r *http.Request) {
         claims, ok := r.Context().Value(chiJwk.JwtTokenKey).(map[string]interface{})
@@ -29,16 +30,26 @@ func WithFilter(opts FilterOptions, handlerFunc func(w http.ResponseWriter, r *h
             return
         }
 
-        if !chiJwk.TokenHasRequiredRoles(token.Roles(), opts.Roles) {
+        if !chiJwk.TokenHasRequiredRoles(token.Roles(), opts.FilterRoles) {
             w.WriteHeader(http.StatusUnauthorized)
             return
         }
 
-        if !chiJwk.TokenHasRequiredScopes(token.Scopes(), opts.Scopes) {
+        if !chiJwk.TokenHasRequiredScopes(token.Scopes(), opts.FilterScopes) {
             w.WriteHeader(http.StatusUnauthorized)
             return
         }
 
         handlerFunc(w, r)
     }
+}
+
+// Roles returns the required roles for the filter.
+func (f *FilterOptions) Roles() []string {
+    return f.FilterRoles
+}
+
+// Scopes returns the required scopes for the filter.
+func (f *FilterOptions) Scopes() []string {
+    return f.FilterScopes
 }
