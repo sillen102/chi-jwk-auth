@@ -12,9 +12,11 @@ import (
     "github.com/lestrrat-go/jwx/v2/jwk"
     "github.com/lestrrat-go/jwx/v2/jws"
     "github.com/lestrrat-go/jwx/v2/jwt"
+    "github.com/mitchellh/mapstructure"
     "github.com/stretchr/testify/assert"
 
     "github.com/sillen102/chi-jwk-auth/chiJwk"
+    "github.com/sillen102/chi-jwk-auth/keycloak"
 )
 
 const kidValue = "my-key-id"
@@ -22,6 +24,19 @@ const issuerValue = "my-issuer"
 const audienceValue = "my-audience"
 const subjectValue = "my-subject"
 const tokenIdValue = "my-token-id"
+
+type MockFilter struct {
+    roles  []string
+    scopes []string
+}
+
+func (f *MockFilter) Roles() []string {
+    return f.roles
+}
+
+func (f *MockFilter) Scopes() []string {
+    return f.scopes
+}
 
 func TestAuthMiddleware(t *testing.T) {
     // Create a new JWK Set and JWK key
@@ -31,16 +46,30 @@ func TestAuthMiddleware(t *testing.T) {
     jwkAuthOptions := &chiJwk.JwkAuthOptions{
         JwkSet: jwkSet,
         Issuer: issuerValue,
+        CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
+            var token keycloak.JwtToken
+            err := mapstructure.Decode(claims, &token)
+            if err != nil {
+                return nil, err
+            }
+            return &token, nil
+        },
     }
 
     tests := []struct {
         name           string
+        filter         chiJwk.Filter
         token          string
         expectedStatus int
     }{
         {
             name:           "With Valid Token",
             token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "With Valid Token without roles and scopes - No filter",
+            token:          createValidTokenWithoutRolesAndScopes(t, privateKey),
             expectedStatus: http.StatusOK,
         },
         {
@@ -73,6 +102,31 @@ func TestAuthMiddleware(t *testing.T) {
             token:          createTokenWithIssuer(t, privateKey, "invalid-issuer"),
             expectedStatus: http.StatusUnauthorized,
         },
+        {
+            name: "With Valid Filter",
+            filter: &MockFilter{
+                roles:  []string{"role1", "role2"},
+                scopes: []string{"scope1", "scope2"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name: "With Valid Filter (Missing Scopes)",
+            filter: &MockFilter{
+                roles: []string{"role1", "role2"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name: "With Valid Filter (Missing Roles)",
+            filter: &MockFilter{
+                scopes: []string{"scope1", "scope2"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
     }
 
     for _, tt := range tests {
@@ -90,7 +144,7 @@ func TestAuthMiddleware(t *testing.T) {
             rr := httptest.NewRecorder()
 
             // Call the AuthMiddleware function
-            authMiddleware := jwkAuthOptions.AuthMiddleware()
+            authMiddleware := jwkAuthOptions.AuthMiddleware(tt.filter)
             authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(rr, req)
 
             // Check if the response status code is as expected
@@ -141,6 +195,14 @@ func createJwkKeysAndSet(t *testing.T) (jwk.Set, *rsa.PrivateKey) {
 }
 
 func createValidToken(t *testing.T, privateKey *rsa.PrivateKey) string {
+    token := jwt.New()
+    setCommonClaims(t, token)
+    setRoles(t, token)
+    setScopes(t, token)
+    return signToken(t, token, privateKey, createHeaders(t, kidValue))
+}
+
+func createValidTokenWithoutRolesAndScopes(t *testing.T, privateKey *rsa.PrivateKey) string {
     token := jwt.New()
     setCommonClaims(t, token)
     return signToken(t, token, privateKey, createHeaders(t, kidValue))
@@ -205,6 +267,22 @@ func setCommonClaims(t *testing.T, token jwt.Token) {
         t.Fatal(err)
     }
     err = token.Set(jwt.JwtIDKey, tokenIdValue)
+    if err != nil {
+        t.Fatal(err)
+    }
+}
+
+func setRoles(t *testing.T, token jwt.Token) {
+    err := token.Set("realm_access", map[string][]string{
+        "tokenRoles": {"role1", "role2"},
+    })
+    if err != nil {
+        t.Fatal(err)
+    }
+}
+
+func setScopes(t *testing.T, token jwt.Token) {
+    err := token.Set("scope", "scope1 scope2")
     if err != nil {
         t.Fatal(err)
     }
