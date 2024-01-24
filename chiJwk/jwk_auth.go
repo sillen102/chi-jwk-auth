@@ -41,6 +41,19 @@ type Filter interface {
     Scopes() []string
 }
 
+type DefaultFilter struct {
+    FilterRoles  []string
+    FilterScopes []string
+}
+
+func (f DefaultFilter) Roles() []string {
+    return f.FilterRoles
+}
+
+func (f DefaultFilter) Scopes() []string {
+    return f.FilterScopes
+}
+
 // NewJwkOptions creates a new jwk auth middleware.
 func NewJwkOptions(issuer string) (*JwkAuthOptions, error) {
     jwksSet, err := jwk.Fetch(context.Background(), issuer+DefaultJwkUri)
@@ -53,9 +66,11 @@ func NewJwkOptions(issuer string) (*JwkAuthOptions, error) {
         oldJwkSet:              nil,
         Issuer:                 issuer,
         IssuerJwkUrl:           issuer + DefaultJwkUri,
+        Filter:                 DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         RenewKeys:              true,
         RenewalInterval:        10 * time.Minute,
         KeyRotationGracePeriod: 30 * time.Minute,
+        CreateToken:            CreateTokenFromClaims[Token],
     }, nil
 }
 
@@ -152,25 +167,27 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
                 return
             }
 
-            // Check if the token passes any filters
-            if filter != nil && len(filter) > 0 && filter[0] != nil && options.CreateToken != nil {
-                // Create token instance
-                token, err := options.CreateToken(claims)
-                if err != nil {
-                    http.Error(w, "Invalid token type", http.StatusUnauthorized)
+            // Create token instance
+            token, err := options.CreateToken(claims)
+            if err != nil {
+                http.Error(w, "Invalid token type", http.StatusUnauthorized)
+                return
+            }
+
+            // Check if the token passes filters
+            for _, f := range filter {
+                if f == nil {
+                    continue
+                }
+
+                if !TokenHasRequiredRoles(token.Roles(), f.Roles()) {
+                    http.Error(w, "Unauthorized", http.StatusUnauthorized)
                     return
                 }
 
-                for _, f := range filter {
-                    if !TokenHasRequiredRoles(token.Roles(), f.Roles()) {
-                        http.Error(w, "Unauthorized", http.StatusUnauthorized)
-                        return
-                    }
-
-                    if !TokenHasRequiredScopes(token.Scopes(), f.Scopes()) {
-                        http.Error(w, "Unauthorized", http.StatusUnauthorized)
-                        return
-                    }
+                if !TokenHasRequiredScopes(token.Scopes(), f.Scopes()) {
+                    http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                    return
                 }
             }
 
@@ -198,6 +215,17 @@ func GetClaims(ctx context.Context, token Token) error {
     }
 
     return nil
+}
+
+// CreateTokenFromClaims create a token from claims.
+// The token must implement the Token interface and have mapstructure tags.
+func CreateTokenFromClaims[T Token](claims map[string]interface{}) (Token, error) {
+    var token T
+    err := mapstructure.Decode(claims, &token)
+    if err != nil {
+        return nil, err
+    }
+    return token, nil
 }
 
 // TokenHasRequiredRoles checks if the token has the required scopes.
