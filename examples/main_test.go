@@ -25,7 +25,9 @@ func TestExample(t *testing.T) {
         JwkSet:       testServer.JwkSet,
         Issuer:       testServer.Issuer,
         IssuerJwkUrl: "/keys",
+        Filter:       chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         RenewKeys:    false,
+        CreateToken:  chiJwk.CreateTokenFromClaims[MyToken],
     }
 
     // create a new router
@@ -48,6 +50,12 @@ func TestExample(t *testing.T) {
         {
             name:           "Test /api/admin endpoint",
             endpoint:       "/api/admin",
+            token:          adminToken(t, testServer),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "Test /api/middleware-filter endpoint",
+            endpoint:       "/api/middleware-filter",
             token:          adminToken(t, testServer),
             expectedStatus: http.StatusOK,
         },

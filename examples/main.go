@@ -3,6 +3,7 @@ package main
 import (
     "log"
     "net/http"
+    "strings"
 
     "github.com/go-chi/chi/v5"
 
@@ -10,6 +11,7 @@ import (
     "github.com/sillen102/chi-jwk-auth/keycloak"
 )
 
+// MyToken is the struct for the token claims, needs to implement chiJwk.Token interface
 type MyToken struct {
     UserID        string      `mapstructure:"sub"`
     FirstName     string      `mapstructure:"given_name"`
@@ -21,7 +23,17 @@ type MyToken struct {
 }
 
 type RealmAccess struct {
-    Roles []string `mapstructure:"roles"`
+    Roles []string `mapstructure:"tokenRoles"`
+}
+
+// Roles returns the roles of the token. Must not use pointer receiver.
+func (t MyToken) Roles() []string {
+    return t.RealmAccess.Roles
+}
+
+// Scopes returns the scopes of the token. Must not use pointer receiver.
+func (t MyToken) Scopes() []string {
+    return strings.Split(t.Scope, " ")
 }
 
 func main() {
@@ -44,14 +56,26 @@ func main() {
 func setupRouter(r *chi.Mux, jwkAuth *chiJwk.JwkAuthOptions) {
     r.Use(jwkAuth.AuthMiddleware())
 
-    // Without filter options
-    r.Get("/api/secure", myHandler)
-
-    // With filter options
+    // With function level filter options
     r.Get("/api/admin", keycloak.WithFilter(keycloak.FilterOptions{
         FilterRoles:  []string{"admin"},
         FilterScopes: []string{"profile"},
     }, myHandler))
+
+    // With middleware filter options
+    r.Group(func(r chi.Router) {
+        r.Use(jwkAuth.AuthMiddleware(&keycloak.FilterOptions{
+            FilterRoles:  []string{"admin"},
+            FilterScopes: []string{"profile"},
+        }))
+        r.Get("/api/middleware-filter", myHandler)
+    })
+
+    // Without middleware level filter options
+    r.Group(func(r chi.Router) {
+        r.Use(jwkAuth.AuthMiddleware())
+        r.Get("/api/secure", myHandler)
+    })
 }
 
 // myHandler is the handler for the secure endpoint.

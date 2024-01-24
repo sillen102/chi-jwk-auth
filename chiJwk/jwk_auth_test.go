@@ -30,11 +30,11 @@ type MockFilter struct {
     scopes []string
 }
 
-func (f *MockFilter) Roles() []string {
+func (f MockFilter) Roles() []string {
     return f.roles
 }
 
-func (f *MockFilter) Scopes() []string {
+func (f MockFilter) Scopes() []string {
     return f.scopes
 }
 
@@ -46,6 +46,7 @@ func TestAuthMiddleware(t *testing.T) {
     jwkAuthOptions := &chiJwk.JwkAuthOptions{
         JwkSet: jwkSet,
         Issuer: issuerValue,
+        Filter: chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken
             err := mapstructure.Decode(claims, &token)
@@ -112,7 +113,7 @@ func TestAuthMiddleware(t *testing.T) {
             expectedStatus: http.StatusOK,
         },
         {
-            name: "With Valid Filter (Missing FilterScopes)",
+            name: "With Valid Filter containing only roles",
             filter: &MockFilter{
                 roles: []string{"role1", "role2"},
             },
@@ -120,12 +121,28 @@ func TestAuthMiddleware(t *testing.T) {
             expectedStatus: http.StatusOK,
         },
         {
-            name: "With Valid Filter (Missing FilterRoles)",
+            name: "With Valid Filter containing only scopes",
             filter: &MockFilter{
                 scopes: []string{"scope1", "scope2"},
             },
             token:          createValidToken(t, privateKey),
             expectedStatus: http.StatusOK,
+        },
+        {
+            name: "With Valid Filter and invalid token roles",
+            filter: &MockFilter{
+                roles: []string{"role3"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name: "With Valid Filter and invalid token scopes",
+            filter: &MockFilter{
+                scopes: []string{"scope3"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusUnauthorized,
         },
     }
 
