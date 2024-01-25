@@ -26,7 +26,7 @@ type JwtToken struct {
 }
 
 type RealmAccess struct {
-    Roles []string `mapstructure:"tokenRoles"`
+    Roles []string `mapstructure:"roles"`
 }
 
 // Roles returns the roles of the token.
