@@ -15,7 +15,6 @@ import (
 )
 
 const JwtTokenKey = "jwt-token"
-const DefaultJwkUri = "/protocol/openid-connect/certs"
 
 // JwkAuthOptions is the struct for the jwk auth middleware.
 type JwkAuthOptions struct {
@@ -55,8 +54,8 @@ func (f DefaultFilter) Scopes() []string {
 }
 
 // NewJwkOptions creates a new jwk auth middleware.
-func NewJwkOptions(issuer string) (*JwkAuthOptions, error) {
-    jwksSet, err := jwk.Fetch(context.Background(), issuer+DefaultJwkUri)
+func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
+    jwksSet, err := jwk.Fetch(context.Background(), jwksUrl)
     if err != nil {
         return nil, errors.New("could not fetch jwks key set")
     }
@@ -65,7 +64,7 @@ func NewJwkOptions(issuer string) (*JwkAuthOptions, error) {
         JwkSet:                 jwksSet,
         oldJwkSet:              nil,
         Issuer:                 issuer,
-        IssuerJwkUrl:           issuer + DefaultJwkUri,
+        IssuerJwkUrl:           jwksUrl,
         Filter:                 DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         RenewKeys:              true,
         RenewalInterval:        10 * time.Minute,

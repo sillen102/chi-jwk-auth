@@ -38,7 +38,10 @@ func (t MyToken) Scopes() []string {
 
 func main() {
     // create jwk auth middleware with jwks key set
-    authOptions, err := chiJwk.NewJwkOptions("http://localhost:8080/realms/MyRealm")
+    authOptions, err := chiJwk.NewJwkOptions(
+        "http://localhost:8080/realms/MyRealm",
+        "http://localhost:8080/realms/MyRealm/protocol/openid-connect/certs",
+    )
     if err != nil {
         log.Fatal("could not create jwk auth middleware")
     }
