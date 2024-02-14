@@ -291,7 +291,7 @@ func setCommonClaims(t *testing.T, token jwt.Token) {
 
 func setRoles(t *testing.T, token jwt.Token) {
     err := token.Set("realm_access", map[string][]string{
-        "tokenRoles": {"role1", "role2"},
+        "roles": {"role1", "role2"},
     })
     if err != nil {
         t.Fatal(err)

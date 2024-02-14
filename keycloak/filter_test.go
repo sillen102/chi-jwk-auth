@@ -84,7 +84,7 @@ func TestWithFilter(t *testing.T) {
             // Mock the request context to include the tokenRoles and tokenScopes
             ctx := context.WithValue(req.Context(), chiJwk.JwtTokenKey, map[string]interface{}{
                 "realm_access": map[string]interface{}{
-                    "tokenRoles": tt.tokenRoles,
+                    "roles": tt.tokenRoles,
                 },
                 "scope": tt.tokenScopes,
             })
