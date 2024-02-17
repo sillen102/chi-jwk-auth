@@ -38,15 +38,150 @@ func (f MockFilter) Scopes() []string {
     return f.scopes
 }
 
-func TestAuthMiddleware(t *testing.T) {
+func TestAuthMiddleware_Cookie(t *testing.T) {
     // Create a new JWK Set and JWK key
     jwkSet, privateKey := createJwkKeysAndSet(t)
 
     // Create a mock JwkAuthOptions
     jwkAuthOptions := &chiJwk.JwkAuthOptions{
-        JwkSet: jwkSet,
-        Issuer: issuerValue,
-        Filter: chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
+        AuthenticationType: chiJwk.Cookie,
+        CookieOptions:      chiJwk.CookieOptions{Name: "access-token"},
+        JwkSet:             jwkSet,
+        Issuer:             issuerValue,
+        Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
+        CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
+            var token keycloak.JwtToken
+            err := mapstructure.Decode(claims, &token)
+            if err != nil {
+                return nil, err
+            }
+            return &token, nil
+        },
+    }
+
+    tests := []struct {
+        name           string
+        filter         chiJwk.Filter
+        token          string
+        expectedStatus int
+    }{
+        {
+            name:           "With Valid Token",
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "With Valid Token without roles and scopes - No filter",
+            token:          createValidTokenWithoutRolesAndScopes(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name:           "With Invalid Token",
+            token:          "invalid-token",
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Expired Token",
+            token:          createTokenWithExpiration(t, privateKey, time.Now().Add(-time.Minute)),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Not Yet Valid Token",
+            token:          createTokenWithNotBefore(t, privateKey, time.Now().Add(time.Minute)),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Invalid Signature Token",
+            token:          createValidToken(t, privateKey) + "invalid",
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Invalid Kid Token",
+            token:          createTokenWithKid(t, privateKey, "invalid-kid"),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name:           "With Invalid Issuer Token",
+            token:          createTokenWithIssuer(t, privateKey, "invalid-issuer"),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name: "With Valid Filter",
+            filter: &MockFilter{
+                roles:  []string{"role1", "role2"},
+                scopes: []string{"scope1", "scope2"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name: "With Valid Filter containing only roles",
+            filter: &MockFilter{
+                roles: []string{"role1", "role2"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name: "With Valid Filter containing only scopes",
+            filter: &MockFilter{
+                scopes: []string{"scope1", "scope2"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusOK,
+        },
+        {
+            name: "With Valid Filter and invalid token roles",
+            filter: &MockFilter{
+                roles: []string{"role3"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusUnauthorized,
+        },
+        {
+            name: "With Valid Filter and invalid token scopes",
+            filter: &MockFilter{
+                scopes: []string{"scope3"},
+            },
+            token:          createValidToken(t, privateKey),
+            expectedStatus: http.StatusUnauthorized,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Create a mock HTTP request
+            req, err := http.NewRequest("GET", "/test", nil)
+            if err != nil {
+                t.Fatal(err)
+            }
+
+            // Add the token to the request as cookie
+            req.AddCookie(&http.Cookie{Name: "access-token", Value: tt.token})
+
+            // Create a mock HTTP response writer
+            rr := httptest.NewRecorder()
+
+            // Call the AuthMiddleware function
+            authMiddleware := jwkAuthOptions.AuthMiddleware(tt.filter)
+            authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(rr, req)
+
+            // Check if the response status code is as expected
+            assert.Equal(t, tt.expectedStatus, rr.Code)
+        })
+    }
+}
+
+func TestAuthMiddleware_BearerToken(t *testing.T) {
+    // Create a new JWK Set and JWK key
+    jwkSet, privateKey := createJwkKeysAndSet(t)
+
+    // Create a mock JwkAuthOptions
+    jwkAuthOptions := &chiJwk.JwkAuthOptions{
+        AuthenticationType: chiJwk.Bearer,
+        JwkSet:             jwkSet,
+        Issuer:             issuerValue,
+        Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken
             err := mapstructure.Decode(claims, &token)

@@ -18,6 +18,8 @@ const JwtTokenKey = "jwt-token"
 
 // JwkAuthOptions is the struct for the jwk auth middleware.
 type JwkAuthOptions struct {
+    AuthenticationType     AuthenticationType
+    CookieOptions          CookieOptions
     JwkSet                 jwk.Set
     oldJwkSet              jwk.Set
     Issuer                 string
@@ -29,6 +31,17 @@ type JwkAuthOptions struct {
     Logger                 Logger
     CreateToken            func(claims map[string]interface{}) (Token, error)
 }
+
+type AuthenticationType int
+
+type CookieOptions struct {
+    Name string
+}
+
+const (
+    Cookie AuthenticationType = iota
+    Bearer
+)
 
 type Token interface {
     Roles() []string
@@ -61,6 +74,8 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
     }
 
     return &JwkAuthOptions{
+        AuthenticationType:     Cookie,
+        CookieOptions:          CookieOptions{Name: "access-token"},
         JwkSet:                 jwksSet,
         oldJwkSet:              nil,
         Issuer:                 issuer,
@@ -71,6 +86,17 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
         KeyRotationGracePeriod: 30 * time.Minute,
         CreateToken:            CreateTokenFromClaims[Token],
     }, nil
+}
+
+// WithAuthenticationType sets the authentication type option that determines how the token
+// is extracted from the request.
+func (options *JwkAuthOptions) WithAuthenticationType(authenticationType AuthenticationType) {
+    options.AuthenticationType = authenticationType
+}
+
+// WithCookieOptions sets the cookie options that determines how the cookie is extracted from the request.
+func (options *JwkAuthOptions) WithCookieOptions(cookieOptions CookieOptions) {
+    options.CookieOptions = cookieOptions
 }
 
 // WithIssuer sets the issuer option that determines the issuer of the tokens.
@@ -126,21 +152,34 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
         }
 
         fn := func(w http.ResponseWriter, r *http.Request) {
-            // Get the Authorization header
-            authHeader := r.Header.Get("Authorization")
-            if authHeader == "" {
-                http.Error(w, "Authorization header required", http.StatusUnauthorized)
-                return
-            }
+            var tokenStr string
+            // Get the token from the request
+            switch options.AuthenticationType {
+            case Bearer:
+                // Get the Authorization header
+                authHeader := r.Header.Get("Authorization")
+                if authHeader == "" {
+                    http.Error(w, "Authorization header required", http.StatusUnauthorized)
+                    return
+                }
 
-            // Check if the Authorization header starts with "Bearer "
-            if !strings.HasPrefix(authHeader, "Bearer ") {
-                http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
-                return
-            }
+                // Check if the Authorization header starts with "Bearer "
+                if !strings.HasPrefix(authHeader, "Bearer ") {
+                    http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+                    return
+                }
 
-            // Extract the token from the Authorization header
-            tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+                // Extract the token from the Authorization header
+                tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+            case Cookie:
+                // Get the access token from the cookie
+                accessCookie, err := r.Cookie(options.CookieOptions.Name)
+                if err != nil {
+                    http.Error(w, "unauthorized", http.StatusUnauthorized)
+                    return
+                }
+                tokenStr = accessCookie.Value
+            }
 
             // Parse and verify the token
             jwtToken, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.JwkSet), jwt.WithValidate(true))
