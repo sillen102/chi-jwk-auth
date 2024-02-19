@@ -90,58 +90,68 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
 
 // WithAuthenticationType sets the authentication type option that determines how the token
 // is extracted from the request.
-func (options *JwkAuthOptions) WithAuthenticationType(authenticationType AuthenticationType) {
+func (options *JwkAuthOptions) WithAuthenticationType(authenticationType AuthenticationType) *JwkAuthOptions {
     options.AuthenticationType = authenticationType
+    return options
 }
 
 // WithCookieOptions sets the cookie options that determines how the cookie is extracted from the request.
-func (options *JwkAuthOptions) WithCookieOptions(cookieOptions CookieOptions) {
+func (options *JwkAuthOptions) WithCookieOptions(cookieOptions CookieOptions) *JwkAuthOptions {
     options.CookieOptions = cookieOptions
+    return options
 }
 
 // WithIssuer sets the issuer option that determines the issuer of the tokens.
-func (options *JwkAuthOptions) WithIssuer(issuer string) {
+func (options *JwkAuthOptions) WithIssuer(issuer string) *JwkAuthOptions {
     options.Issuer = issuer
+    return options
 }
 
 // WithIssuerJwkUrl sets the issuer JWK URL option that determines where the JWK Set should
 // be fetched from.
-func (options *JwkAuthOptions) WithIssuerJwkUrl(issuerJwkUrl string) {
+func (options *JwkAuthOptions) WithIssuerJwkUrl(issuerJwkUrl string) *JwkAuthOptions {
     options.IssuerJwkUrl = issuerJwkUrl
+    return options
 }
 
 // WithFilter sets the filter option that determines the roles and scopes that are required
 // for the token.
-func (options *JwkAuthOptions) WithFilter(filter Filter) {
+func (options *JwkAuthOptions) WithFilter(filter Filter) *JwkAuthOptions {
     options.Filter = filter
+    return options
 }
 
 // WithRenewKeys sets the option for key renewal that determines if the keys should be renewed
 // at regular intervals.
-func (options *JwkAuthOptions) WithRenewKeys(renewKeys bool) {
+func (options *JwkAuthOptions) WithRenewKeys(renewKeys bool) *JwkAuthOptions {
     options.RenewKeys = renewKeys
+    return options
 }
 
 // WithRenewalInterval sets the renewal interval option that determines how often the keys
 // should be renewed.
-func (options *JwkAuthOptions) WithRenewalInterval(renewalInterval time.Duration) {
+func (options *JwkAuthOptions) WithRenewalInterval(renewalInterval time.Duration) *JwkAuthOptions {
     options.RenewalInterval = renewalInterval
+    return options
 }
 
 // WithKeyRotationGracePeriod sets the key rotation grace period option that determines how
 // long the old keys should be kept after the new keys have been fetched.
-func (options *JwkAuthOptions) WithKeyRotationGracePeriod(keyRotationGracePeriod time.Duration) {
+func (options *JwkAuthOptions) WithKeyRotationGracePeriod(keyRotationGracePeriod time.Duration) *JwkAuthOptions {
     options.KeyRotationGracePeriod = keyRotationGracePeriod
+    return options
 }
 
 // WithLogger sets the logger option that determines how the library logs messages.
-func (options *JwkAuthOptions) WithLogger(logger Logger) {
+func (options *JwkAuthOptions) WithLogger(logger Logger) *JwkAuthOptions {
     options.Logger = logger
+    return options
 }
 
 // WithCreateToken sets the create token option that determines how the token is created.
-func (options *JwkAuthOptions) WithCreateToken(createToken func(claims map[string]interface{}) (Token, error)) {
+func (options *JwkAuthOptions) WithCreateToken(createToken func(claims map[string]interface{}) (Token, error)) *JwkAuthOptions {
     options.CreateToken = createToken
+    return options
 }
 
 // AuthMiddleware is the middleware for authenticating requests.
