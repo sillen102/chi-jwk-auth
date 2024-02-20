@@ -26,7 +26,6 @@ func TestExample(t *testing.T) {
         Issuer:       testServer.Issuer,
         IssuerJwkUrl: "/keys",
         Filter:       chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
-        RenewKeys:    false,
         CreateToken:  chiJwk.CreateTokenFromClaims[MyToken],
     }
 

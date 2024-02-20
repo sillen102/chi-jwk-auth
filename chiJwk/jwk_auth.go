@@ -2,12 +2,10 @@ package chiJwk
 
 import (
     "context"
-    "encoding/json"
     "errors"
     "fmt"
     "net/http"
     "strings"
-    "time"
 
     "github.com/lestrrat-go/jwx/v2/jwk"
     "github.com/lestrrat-go/jwx/v2/jwt"
@@ -18,18 +16,15 @@ const JwtTokenKey = "jwt-token"
 
 // JwkAuthOptions is the struct for the jwk auth middleware.
 type JwkAuthOptions struct {
-    AuthenticationType     AuthenticationType
-    CookieOptions          CookieOptions
-    JwkSet                 jwk.Set
-    oldJwkSet              jwk.Set
-    Issuer                 string
-    IssuerJwkUrl           string
-    Filter                 Filter
-    RenewKeys              bool
-    RenewalInterval        time.Duration
-    KeyRotationGracePeriod time.Duration
-    Logger                 Logger
-    CreateToken            func(claims map[string]interface{}) (Token, error)
+    AuthenticationType AuthenticationType
+    CookieOptions      CookieOptions
+    JwkSet             jwk.Set
+    oldJwkSet          jwk.Set
+    Issuer             string
+    IssuerJwkUrl       string
+    Filter             Filter
+    Logger             Logger
+    CreateToken        func(claims map[string]interface{}) (Token, error)
 }
 
 type AuthenticationType int
@@ -74,17 +69,14 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
     }
 
     return &JwkAuthOptions{
-        AuthenticationType:     Cookie,
-        CookieOptions:          CookieOptions{Name: "access-token"},
-        JwkSet:                 jwksSet,
-        oldJwkSet:              nil,
-        Issuer:                 issuer,
-        IssuerJwkUrl:           jwksUrl,
-        Filter:                 DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
-        RenewKeys:              true,
-        RenewalInterval:        10 * time.Minute,
-        KeyRotationGracePeriod: 30 * time.Minute,
-        CreateToken:            CreateTokenFromClaims[Token],
+        AuthenticationType: Cookie,
+        CookieOptions:      CookieOptions{Name: "access-token"},
+        JwkSet:             jwksSet,
+        oldJwkSet:          nil,
+        Issuer:             issuer,
+        IssuerJwkUrl:       jwksUrl,
+        Filter:             DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
+        CreateToken:        CreateTokenFromClaims[Token],
     }, nil
 }
 
@@ -121,27 +113,6 @@ func (options *JwkAuthOptions) WithFilter(filter Filter) *JwkAuthOptions {
     return options
 }
 
-// WithRenewKeys sets the option for key renewal that determines if the keys should be renewed
-// at regular intervals.
-func (options *JwkAuthOptions) WithRenewKeys(renewKeys bool) *JwkAuthOptions {
-    options.RenewKeys = renewKeys
-    return options
-}
-
-// WithRenewalInterval sets the renewal interval option that determines how often the keys
-// should be renewed.
-func (options *JwkAuthOptions) WithRenewalInterval(renewalInterval time.Duration) *JwkAuthOptions {
-    options.RenewalInterval = renewalInterval
-    return options
-}
-
-// WithKeyRotationGracePeriod sets the key rotation grace period option that determines how
-// long the old keys should be kept after the new keys have been fetched.
-func (options *JwkAuthOptions) WithKeyRotationGracePeriod(keyRotationGracePeriod time.Duration) *JwkAuthOptions {
-    options.KeyRotationGracePeriod = keyRotationGracePeriod
-    return options
-}
-
 // WithLogger sets the logger option that determines how the library logs messages.
 func (options *JwkAuthOptions) WithLogger(logger Logger) *JwkAuthOptions {
     options.Logger = logger
@@ -157,9 +128,6 @@ func (options *JwkAuthOptions) WithCreateToken(createToken func(claims map[strin
 // AuthMiddleware is the middleware for authenticating requests.
 func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
-        if options.RenewKeys {
-            options.startKeyRenewal()
-        }
 
         fn := func(w http.ResponseWriter, r *http.Request) {
             var tokenStr string
@@ -314,55 +282,4 @@ func TokenHasRequiredScopes(tokenScopes []string, requiredScopes []string) bool 
     }
 
     return true
-}
-
-// startKeyRenewal starts a ticker that fetches the JWK Set at regular intervals.
-func (options *JwkAuthOptions) startKeyRenewal() {
-    if !options.RenewKeys {
-        return
-    }
-
-    ticker := time.NewTicker(options.RenewalInterval)
-    go func() {
-        for range ticker.C {
-            // Fetch the new JWK Set
-            options.Logger.Debug("Fetching JWK Set")
-            newJwkSet, err := jwk.Fetch(context.Background(), options.IssuerJwkUrl)
-            if err != nil {
-                options.Logger.Error(err, "Error fetching JWK Set")
-                continue
-            }
-
-            // Convert the current and new JWK Sets to JSON
-            options.Logger.Debug("Marshaling JWK Sets")
-            currentJwkSetJson, err := json.Marshal(options.JwkSet)
-            if err != nil {
-                options.Logger.Error(err, "Error marshaling current JWK Set")
-                continue
-            }
-            newJwkSetJson, err := json.Marshal(newJwkSet)
-            if err != nil {
-                options.Logger.Error(err, "Error marshaling new JWK Set")
-                continue
-            }
-
-            // If the JWK Sets are the same, skip the update
-            if string(currentJwkSetJson) == string(newJwkSetJson) {
-                options.Logger.Debug("JWK Set has not changed")
-                continue
-            }
-
-            // Keep the old JWK Set and update the current one
-            options.Logger.Debug("Updating JWK Set")
-            options.oldJwkSet = options.JwkSet
-            options.JwkSet = newJwkSet
-
-            // Start a timer for the grace period
-            time.AfterFunc(options.KeyRotationGracePeriod, func() {
-                // After the grace period, discard the old JWK Set
-                options.Logger.Debug("Discarding old JWK Set")
-                options.oldJwkSet = nil
-            })
-        }
-    }()
 }
