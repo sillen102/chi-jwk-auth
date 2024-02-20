@@ -5,9 +5,9 @@ import (
 )
 
 type Logger interface {
-    Info(msg string, keysAndValues ...interface{})
-    Error(err error, msg string, keysAndValues ...interface{})
-    Debug(msg string, keysAndValues ...interface{})
+    Info(msg string, keysAndValues ...any)
+    Error(err error, msg string, keysAndValues ...any)
+    Debug(msg string, keysAndValues ...any)
 }
 
 // StdLogger is a simple logger that writes to stdout. It is the default logger and implements the Logger interface.
@@ -21,14 +21,14 @@ func NewStdLogger() StdLogger {
     return StdLogger{}
 }
 
-func (l StdLogger) Info(msg string, keysAndValues ...interface{}) {
-    fmt.Printf("INFO: %s\n", msg)
+func (l StdLogger) Info(msg string, keysAndValues ...any) {
+    fmt.Printf("INFO: %s: %v \n", msg, keysAndValues)
 }
 
-func (l StdLogger) Error(err error, msg string, keysAndValues ...interface{}) {
-    fmt.Printf("ERROR: %s: %v\n", msg, err)
+func (l StdLogger) Error(err error, msg string, keysAndValues ...any) {
+    fmt.Printf("ERROR: %s: %v: %v\n", msg, keysAndValues, err)
 }
 
-func (l StdLogger) Debug(msg string, keysAndValues ...interface{}) {
-    fmt.Printf("DEBUG: %s\n", msg)
+func (l StdLogger) Debug(msg string, keysAndValues ...any) {
+    fmt.Printf("DEBUG: %s: %v\n", msg, keysAndValues)
 }
