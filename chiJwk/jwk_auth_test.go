@@ -38,6 +38,8 @@ func (f MockFilter) Scopes() []string {
     return f.scopes
 }
 
+type MockLogger struct{}
+
 func TestAuthMiddleware_Cookie(t *testing.T) {
     // Create a new JWK Set and JWK key
     jwkSet, privateKey := createJwkKeysAndSet(t)
@@ -48,6 +50,7 @@ func TestAuthMiddleware_Cookie(t *testing.T) {
         CookieOptions:      chiJwk.CookieOptions{Name: "access-token"},
         JwkSet:             jwkSet,
         Issuer:             issuerValue,
+        Logger:             chiJwk.NewStdLogger(),
         Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken
@@ -181,6 +184,7 @@ func TestAuthMiddleware_BearerToken(t *testing.T) {
         AuthenticationType: chiJwk.Bearer,
         JwkSet:             jwkSet,
         Issuer:             issuerValue,
+        Logger:             chiJwk.NewStdLogger(),
         Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken

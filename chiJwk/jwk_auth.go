@@ -5,13 +5,14 @@ import (
     "errors"
     "fmt"
     "net/http"
-    "strings"
 
+    "github.com/golang-jwt/jwt/request"
     "github.com/lestrrat-go/jwx/v2/jwk"
     "github.com/lestrrat-go/jwx/v2/jwt"
     "github.com/mitchellh/mapstructure"
 )
 
+// JwtTokenKey is the key for the jwt token in the context.
 const JwtTokenKey = "jwt-token"
 
 // JwkAuthOptions is the struct for the jwk auth middleware.
@@ -19,7 +20,6 @@ type JwkAuthOptions struct {
     AuthenticationType AuthenticationType
     CookieOptions      CookieOptions
     JwkSet             jwk.Set
-    oldJwkSet          jwk.Set
     Issuer             string
     IssuerJwkUrl       string
     Filter             Filter
@@ -72,10 +72,10 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
         AuthenticationType: Cookie,
         CookieOptions:      CookieOptions{Name: "access-token"},
         JwkSet:             jwksSet,
-        oldJwkSet:          nil,
         Issuer:             issuer,
         IssuerJwkUrl:       jwksUrl,
         Filter:             DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
+        Logger:             NewStdLogger(),
         CreateToken:        CreateTokenFromClaims[Token],
     }, nil
 }
@@ -130,30 +130,23 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
     return func(next http.Handler) http.Handler {
 
         fn := func(w http.ResponseWriter, r *http.Request) {
-            var tokenStr string
             // Get the token from the request
+            var tokenStr string
             switch options.AuthenticationType {
             case Bearer:
-                // Get the Authorization header
-                authHeader := r.Header.Get("Authorization")
-                if authHeader == "" {
-                    http.Error(w, "Authorization header required", http.StatusUnauthorized)
+                token, err := request.AuthorizationHeaderExtractor.ExtractToken(r)
+                if err != nil {
+                    options.Logger.Debug(fmt.Sprintf("invalid authorization header %v", err))
+                    w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
-
-                // Check if the Authorization header starts with "Bearer "
-                if !strings.HasPrefix(authHeader, "Bearer ") {
-                    http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
-                    return
-                }
-
-                // Extract the token from the Authorization header
-                tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+                tokenStr = token
             case Cookie:
                 // Get the access token from the cookie
                 accessCookie, err := r.Cookie(options.CookieOptions.Name)
                 if err != nil {
-                    http.Error(w, "unauthorized", http.StatusUnauthorized)
+                    options.Logger.Debug(fmt.Sprintf("access token cookie required %v", err))
+                    w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
                 tokenStr = accessCookie.Value
@@ -161,32 +154,32 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
 
             // Parse and verify the token
             jwtToken, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.JwkSet), jwt.WithValidate(true))
-            if err != nil && options.oldJwkSet != nil {
-                // If validation with the new keys failed and there are old keys, try the old keys
-                jwtToken, err = jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.oldJwkSet), jwt.WithValidate(true))
-            }
             if err != nil {
-                http.Error(w, "Invalid token", http.StatusUnauthorized)
+                options.Logger.Debug(fmt.Sprintf("invalid token %v", err))
+                w.WriteHeader(http.StatusUnauthorized)
                 return
             }
 
             // Check the issuer
             if jwtToken.Issuer() != options.Issuer {
-                http.Error(w, "Invalid issuer", http.StatusUnauthorized)
+                options.Logger.Debug("invalid issuer")
+                w.WriteHeader(http.StatusUnauthorized)
                 return
             }
 
             // Get claims
             claims, err := jwtToken.AsMap(r.Context())
             if err != nil {
-                http.Error(w, "Invalid token", http.StatusUnauthorized)
+                options.Logger.Debug(fmt.Sprintf("invalid token claims %v", err))
+                w.WriteHeader(http.StatusUnauthorized)
                 return
             }
 
             // Create token instance
             token, err := options.CreateToken(claims)
             if err != nil {
-                http.Error(w, "Invalid token type", http.StatusUnauthorized)
+                options.Logger.Debug(fmt.Sprintf("invalid token claims %v", err))
+                w.WriteHeader(http.StatusUnauthorized)
                 return
             }
 
@@ -197,12 +190,14 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
                 }
 
                 if !TokenHasRequiredRoles(token.Roles(), f.Roles()) {
-                    http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                    options.Logger.Debug("invalid token roles")
+                    w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
 
                 if !TokenHasRequiredScopes(token.Scopes(), f.Scopes()) {
-                    http.Error(w, "Unauthorized", http.StatusUnauthorized)
+                    options.Logger.Debug("invalid token scopes")
+                    w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
             }
