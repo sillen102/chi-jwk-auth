@@ -4,7 +4,9 @@ import (
     "context"
     "errors"
     "fmt"
+    "log"
     "net/http"
+    "os"
 
     "github.com/golang-jwt/jwt/request"
     "github.com/lestrrat-go/jwx/v2/jwk"
@@ -75,7 +77,7 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
         Issuer:             issuer,
         IssuerJwkUrl:       jwksUrl,
         Filter:             DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
-        Logger:             NewStdLogger(),
+        Logger:             log.New(os.Stdout, "jwk-auth", log.LstdFlags),
         CreateToken:        CreateTokenFromClaims[Token],
     }, nil
 }
@@ -136,7 +138,7 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             case Bearer:
                 token, err := request.AuthorizationHeaderExtractor.ExtractToken(r)
                 if err != nil {
-                    options.Logger.Debug(fmt.Sprintf("invalid authorization header %v", err))
+                    options.Logger.Print(fmt.Sprintf("invalid authorization header %v", err))
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
@@ -145,7 +147,7 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
                 // Get the access token from the cookie
                 accessCookie, err := r.Cookie(options.CookieOptions.Name)
                 if err != nil {
-                    options.Logger.Debug(fmt.Sprintf("access token cookie required %v", err))
+                    options.Logger.Print(fmt.Sprintf("access token cookie required %v", err))
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
@@ -155,14 +157,14 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             // Parse and verify the token
             jwtToken, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.JwkSet), jwt.WithValidate(true))
             if err != nil {
-                options.Logger.Debug(fmt.Sprintf("invalid token %v", err))
+                options.Logger.Print(fmt.Sprintf("invalid token %v", err))
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
 
             // Check the issuer
             if jwtToken.Issuer() != options.Issuer {
-                options.Logger.Debug("invalid issuer")
+                options.Logger.Print("invalid issuer")
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
@@ -170,7 +172,7 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             // Get claims
             claims, err := jwtToken.AsMap(r.Context())
             if err != nil {
-                options.Logger.Debug(fmt.Sprintf("invalid token claims %v", err))
+                options.Logger.Print(fmt.Sprintf("invalid token claims %v", err))
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
@@ -178,7 +180,7 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             // Create token instance
             token, err := options.CreateToken(claims)
             if err != nil {
-                options.Logger.Debug(fmt.Sprintf("invalid token claims %v", err))
+                options.Logger.Print(fmt.Sprintf("invalid token claims %v", err))
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
@@ -190,13 +192,13 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
                 }
 
                 if !TokenHasRequiredRoles(token.Roles(), f.Roles()) {
-                    options.Logger.Debug("invalid token roles")
+                    options.Logger.Print("invalid token roles")
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
 
                 if !TokenHasRequiredScopes(token.Scopes(), f.Scopes()) {
-                    options.Logger.Debug("invalid token scopes")
+                    options.Logger.Print("invalid token scopes")
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
