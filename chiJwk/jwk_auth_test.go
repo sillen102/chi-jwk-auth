@@ -3,8 +3,10 @@ package chiJwk_test
 import (
     "crypto/rand"
     "crypto/rsa"
+    "log"
     "net/http"
     "net/http/httptest"
+    "os"
     "testing"
     "time"
 
@@ -50,7 +52,7 @@ func TestAuthMiddleware_Cookie(t *testing.T) {
         CookieOptions:      chiJwk.CookieOptions{Name: "access-token"},
         JwkSet:             jwkSet,
         Issuer:             issuerValue,
-        Logger:             chiJwk.NewStdLogger(),
+        Logger:             log.New(os.Stdout, "test: ", log.LstdFlags),
         Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken
@@ -184,7 +186,7 @@ func TestAuthMiddleware_BearerToken(t *testing.T) {
         AuthenticationType: chiJwk.Bearer,
         JwkSet:             jwkSet,
         Issuer:             issuerValue,
-        Logger:             chiJwk.NewStdLogger(),
+        Logger:             log.New(os.Stdout, "test: ", log.LstdFlags),
         Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken
