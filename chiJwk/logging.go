@@ -5,7 +5,7 @@ import (
 )
 
 type Logger interface {
-    Info(msg string, keysAndValues ...interface{})
+    Info(args ...interface{})
     Error(err error, msg string, keysAndValues ...interface{})
     Debug(msg string, keysAndValues ...interface{})
 }
@@ -21,8 +21,8 @@ func NewStdLogger() StdLogger {
     return StdLogger{}
 }
 
-func (l StdLogger) Info(msg string, keysAndValues ...interface{}) {
-    fmt.Printf("INFO: %s: %v \n", msg, keysAndValues)
+func (l StdLogger) Info(args ...interface{}) {
+    fmt.Printf("INFO: %s: \n", args)
 }
 
 func (l StdLogger) Error(err error, msg string, keysAndValues ...interface{}) {
