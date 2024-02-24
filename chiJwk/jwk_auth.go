@@ -4,9 +4,7 @@ import (
     "context"
     "errors"
     "fmt"
-    "log"
     "net/http"
-    "os"
 
     "github.com/golang-jwt/jwt/request"
     "github.com/lestrrat-go/jwx/v2/jwk"
@@ -25,7 +23,6 @@ type JwkAuthOptions struct {
     Issuer             string
     IssuerJwkUrl       string
     Filter             Filter
-    Logger             Logger
     CreateToken        func(claims map[string]interface{}) (Token, error)
 }
 
@@ -77,7 +74,6 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
         Issuer:             issuer,
         IssuerJwkUrl:       jwksUrl,
         Filter:             DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
-        Logger:             log.New(os.Stdout, "jwk-auth", log.LstdFlags),
         CreateToken:        CreateTokenFromClaims[Token],
     }, nil
 }
@@ -115,12 +111,6 @@ func (options *JwkAuthOptions) WithFilter(filter Filter) *JwkAuthOptions {
     return options
 }
 
-// WithLogger sets the logger option that determines how the library logs messages.
-func (options *JwkAuthOptions) WithLogger(logger Logger) *JwkAuthOptions {
-    options.Logger = logger
-    return options
-}
-
 // WithCreateToken sets the create token option that determines how the token is created.
 func (options *JwkAuthOptions) WithCreateToken(createToken func(claims map[string]interface{}) (Token, error)) *JwkAuthOptions {
     options.CreateToken = createToken
@@ -132,13 +122,16 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
     return func(next http.Handler) http.Handler {
 
         fn := func(w http.ResponseWriter, r *http.Request) {
+            ctx := r.Context()
+            log := FromCtx(ctx)
+
             // Get the token from the request
             var tokenStr string
             switch options.AuthenticationType {
             case Bearer:
                 token, err := request.AuthorizationHeaderExtractor.ExtractToken(r)
                 if err != nil {
-                    options.Logger.Print(fmt.Sprintf("invalid authorization header %v", err))
+                    log.Debug(fmt.Sprintf("invalid authorization header %v", err))
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
@@ -147,7 +140,7 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
                 // Get the access token from the cookie
                 accessCookie, err := r.Cookie(options.CookieOptions.Name)
                 if err != nil {
-                    options.Logger.Print(fmt.Sprintf("access token cookie required %v", err))
+                    log.Debug(fmt.Sprintf("access token cookie required %v", err))
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
@@ -157,14 +150,14 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             // Parse and verify the token
             jwtToken, err := jwt.Parse([]byte(tokenStr), jwt.WithKeySet(options.JwkSet), jwt.WithValidate(true))
             if err != nil {
-                options.Logger.Print(fmt.Sprintf("invalid token %v", err))
+                log.Debug(fmt.Sprintf("invalid token %v", err))
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
 
             // Check the issuer
             if jwtToken.Issuer() != options.Issuer {
-                options.Logger.Print("invalid issuer")
+                log.Debug("invalid issuer")
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
@@ -172,7 +165,7 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             // Get claims
             claims, err := jwtToken.AsMap(r.Context())
             if err != nil {
-                options.Logger.Print(fmt.Sprintf("invalid token claims %v", err))
+                log.Debug(fmt.Sprintf("invalid token claims %v", err))
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
@@ -180,7 +173,7 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             // Create token instance
             token, err := options.CreateToken(claims)
             if err != nil {
-                options.Logger.Print(fmt.Sprintf("invalid token claims %v", err))
+                log.Debug(fmt.Sprintf("invalid token claims %v", err))
                 w.WriteHeader(http.StatusUnauthorized)
                 return
             }
@@ -192,20 +185,20 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
                 }
 
                 if !TokenHasRequiredRoles(token.Roles(), f.Roles()) {
-                    options.Logger.Print("invalid token roles")
+                    log.Debug("invalid token roles")
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
 
                 if !TokenHasRequiredScopes(token.Scopes(), f.Scopes()) {
-                    options.Logger.Print("invalid token scopes")
+                    log.Debug("invalid token scopes")
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
             }
 
             // Add claims to context
-            ctx := context.WithValue(r.Context(), JwtTokenKey, claims)
+            ctx = context.WithValue(r.Context(), JwtTokenKey, claims)
 
             // Call the next handler
             next.ServeHTTP(w, r.WithContext(ctx))
