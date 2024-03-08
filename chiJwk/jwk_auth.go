@@ -119,6 +119,15 @@ func (options *JwkAuthOptions) WithCreateToken(createToken func(claims map[strin
 
 // AuthMiddleware is the middleware for authenticating requests.
 func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.Handler) http.Handler {
+    if options.JwkSet == nil {
+        jwksSet, err := jwk.Fetch(context.Background(), options.IssuerJwkUrl)
+        if err != nil {
+            panic(fmt.Sprintf("failed to fetch jwks: %v", err))
+        }
+        options.JwkSet = jwksSet
+    }
+
+
     return func(next http.Handler) http.Handler {
 
         fn := func(w http.ResponseWriter, r *http.Request) {
