@@ -17,13 +17,12 @@ const JwtTokenKey = "jwt-token"
 
 // JwkAuthOptions is the struct for the jwk auth middleware.
 type JwkAuthOptions struct {
-    AuthenticationType AuthenticationType
-    CookieOptions      CookieOptions
-    JwkSet             jwk.Set
-    Issuer             string
-    IssuerJwkUrl       string
-    Filter             Filter
-    CreateToken        func(claims map[string]interface{}) (Token, error)
+    CookieOptions CookieOptions
+    JwkSet        jwk.Set
+    Issuer        string
+    IssuerJwkUrl  string
+    Filter        Filter
+    CreateToken   func(claims map[string]interface{}) (Token, error)
 }
 
 type AuthenticationType int
@@ -31,11 +30,6 @@ type AuthenticationType int
 type CookieOptions struct {
     Name string
 }
-
-const (
-    Cookie AuthenticationType = iota
-    Bearer
-)
 
 type Token interface {
     Roles() []string
@@ -68,21 +62,13 @@ func NewJwkOptions(issuer string, jwksUrl string) (*JwkAuthOptions, error) {
     }
 
     return &JwkAuthOptions{
-        AuthenticationType: Cookie,
-        CookieOptions:      CookieOptions{Name: "access-token"},
-        JwkSet:             jwksSet,
-        Issuer:             issuer,
-        IssuerJwkUrl:       jwksUrl,
-        Filter:             DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
-        CreateToken:        CreateTokenFromClaims[Token],
+        CookieOptions: CookieOptions{Name: "access-token"},
+        JwkSet:        jwksSet,
+        Issuer:        issuer,
+        IssuerJwkUrl:  jwksUrl,
+        Filter:        DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
+        CreateToken:   CreateTokenFromClaims[Token],
     }, nil
-}
-
-// WithAuthenticationType sets the authentication type option that determines how the token
-// is extracted from the request.
-func (options *JwkAuthOptions) WithAuthenticationType(authenticationType AuthenticationType) *JwkAuthOptions {
-    options.AuthenticationType = authenticationType
-    return options
 }
 
 // WithCookieOptions sets the cookie options that determines how the cookie is extracted from the request.
@@ -127,7 +113,6 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
         options.JwkSet = jwksSet
     }
 
-
     return func(next http.Handler) http.Handler {
 
         fn := func(w http.ResponseWriter, r *http.Request) {
@@ -135,25 +120,14 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
             log := FromCtx(ctx)
 
             // Get the token from the request
-            var tokenStr string
-            switch options.AuthenticationType {
-            case Bearer:
-                token, err := request.AuthorizationHeaderExtractor.ExtractToken(r)
-                if err != nil {
-                    log.Debug(fmt.Sprintf("invalid authorization header %v", err))
+            tokenStr := options.extractTokenFromCookie(r)
+            if tokenStr == "" {
+                tokenStr = options.extractTokenFromHeader(r)
+                if tokenStr == "" {
+                    log.Debug("no token found in request")
                     w.WriteHeader(http.StatusUnauthorized)
                     return
                 }
-                tokenStr = token
-            case Cookie:
-                // Get the access token from the cookie
-                accessCookie, err := r.Cookie(options.CookieOptions.Name)
-                if err != nil {
-                    log.Debug(fmt.Sprintf("access token cookie required %v", err))
-                    w.WriteHeader(http.StatusUnauthorized)
-                    return
-                }
-                tokenStr = accessCookie.Value
             }
 
             // Parse and verify the token
@@ -215,6 +189,22 @@ func (options *JwkAuthOptions) AuthMiddleware(filter ...Filter) func(next http.H
 
         return http.HandlerFunc(fn)
     }
+}
+
+func (options *JwkAuthOptions) extractTokenFromHeader(r *http.Request) string {
+    token, err := request.AuthorizationHeaderExtractor.ExtractToken(r)
+    if err != nil {
+        return ""
+    }
+    return token
+}
+
+func (options *JwkAuthOptions) extractTokenFromCookie(r *http.Request) string {
+    accessCookie, err := r.Cookie(options.CookieOptions.Name)
+    if err != nil {
+        return ""
+    }
+    return accessCookie.Value
 }
 
 // GetClaims extracts the token claims from the context into the provided object.

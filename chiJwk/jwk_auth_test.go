@@ -46,11 +46,10 @@ func TestAuthMiddleware_Cookie(t *testing.T) {
 
     // Create a mock JwkAuthOptions
     jwkAuthOptions := &chiJwk.JwkAuthOptions{
-        AuthenticationType: chiJwk.Cookie,
-        CookieOptions:      chiJwk.CookieOptions{Name: "access-token"},
-        JwkSet:             jwkSet,
-        Issuer:             issuerValue,
-        Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
+        CookieOptions: chiJwk.CookieOptions{Name: "access-token"},
+        JwkSet:        jwkSet,
+        Issuer:        issuerValue,
+        Filter:        chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken
             err := mapstructure.Decode(claims, &token)
@@ -180,10 +179,9 @@ func TestAuthMiddleware_BearerToken(t *testing.T) {
 
     // Create a mock JwkAuthOptions
     jwkAuthOptions := &chiJwk.JwkAuthOptions{
-        AuthenticationType: chiJwk.Bearer,
-        JwkSet:             jwkSet,
-        Issuer:             issuerValue,
-        Filter:             chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
+        JwkSet: jwkSet,
+        Issuer: issuerValue,
+        Filter: chiJwk.DefaultFilter{FilterRoles: make([]string, 0), FilterScopes: make([]string, 0)},
         CreateToken: func(claims map[string]interface{}) (chiJwk.Token, error) {
             var token keycloak.JwtToken
             err := mapstructure.Decode(claims, &token)
